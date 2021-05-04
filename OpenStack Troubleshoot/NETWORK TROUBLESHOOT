@@ -1,0 +1,77 @@
+NETWORKING:
+===========
+1.IPADDRESS:
+=============
+PRIVATE_IPADDRESS RANGES:
+=========================
+
+10.0.0.0 – 10.255.255.255
+172.16.0.0 – 172.31.255.255
+192.168.0.0 – 192.168.255.255
+
+PUBLIC_IPADDRESS RANGES:
+========================
+
+Class	     Address range
+------     -------------
+Class A	   1.0.0.1 to 126.255.255.254
+Class B	   128.1.0.1 to 191.255.255.254
+Class C	   192.0.1.1 to 223.255.254.254
+Class D	   224.0.0.0 to 239.255.255.255
+
+2.PING:
+=======
+# ping 192.168.1.1
+# ping www.google.com
+
+3.Traceroute / Tracert:
+=======================
+# Traceroute  192.168.1.1
+# Traceroute  www.google.com
+
+4.Ipconfig / Ifconfig:
+=======================
+# ipconfig
+# ifconfig
+
+5.NSLookUp:
+===========
+# nslookup www.gogle.com
+# nslookup 8.8.8.8
+
+6.Dig:
+======
+
+# dig 8.8.8.8
+# dig www.google.com
+
+7.Netstat: port Check
+==========
+# netstat
+# netstat -na | grep  portnumber
+# netstat -na | grep  22
+
+8.TCPDUMP:
+==========
+# tcpdump  -i eth0 ----------Check Traffic
+# tcpdump -c 5 -i eth0-------Check Traffic of no of packets.
+# tcpdump -D          -------Display all Available Interfaces
+# tcpdump -w 0001.pcap -i eth0--------save traffic in a file.
+# tcpdump -r 0001.pcap  --------------read packets from a file.
+# tcpdump -i eth0 port 22-------------capture packets from specific ports
+# tcpdump -i eth0 src 192.168.0.2---------capture packets from source ip
+
+9.PORTS:
+========
+sudo lsof -i -P -n | grep LISTEN
+sudo netstat -tulpn | grep LISTEN
+sudo ss -tulpn | grep LISTEN
+sudo lsof -i:22 ## see a specific port such as 22 ##
+sudo nmap -sTU -O IP-address-Her
+sudo ss -tulw
+sudo ss -tulwn
+sudo ss -tulwn | grep LISTEN
+$ sudo nmap -sT -O localhost
+$ sudo nmap -sU -O 192.168.2.13 ##[ list open UDP ports ]##
+$ sudo nmap -sT -O 192.168.2.13 ##[ list open TCP ports ]##
+$ sudo nmap -sTU -O 192.168.2.13 -----TCP&UDP
