@@ -1,0 +1,284 @@
+====================================================================================================
+Troubleshooting OpenStack Identity:
+==================================================================================================
+
+Keystone plays a crucial role in the OpenStack deployment. This project is responsible for providing services that support an identity, token management, a service catalog, and policy functionality. While Keystone does not depend on any other OpenStack services, most other OpenStack services depend on Keystone. This core dependency on Keystone means that problems with your Keystone services can cascade, causing problems for many of the other OpenStack services. Tracking down a problem in OpenStack can be complicated due to the different projects that operate together to provide a functionality. When troubleshooting OpenStack, it's smart to make sure that Keystone is operating as intended.
+
+1.Know your version:
+====================
+As of the Liberty release of OpenStack, the identity service finds itself in transition. The service supports two API versions: v2 and v3. The v2 version of the API is deprecated, but may still be found in many OpenStack deployments. Recent releases of OpenStack are configured to serve both the v2 and v3 versions of the Identity API. This can be confirmed by examining the keystone-paste.ini configuration file.
+
+In this file, you will find configurations for two composite apps: main and admin. As demonstrated in the preceding example, each app has a setting for /v2.0 and /v3. With this configuration, this deployment will serve a request to the v2 or v3 Identity API. Here, the command-line clients transition from individual clients per project to a unified OpenStack client that works across projects. The keystone command-line client supports v2 of the Identity API. The newer and preferred OpenStack client supports v2 and v3 of the Identity API.
+The two composite apps in the preceding configuration are used to serve two different Keystone APIs: the public API and the admin API. Historically, the admin API was used to serve admin-level requests, such as adding a tenant or adding a user. The functionality of the admin API is small and focused. The public API is responsible for serving all other requests.
+With v3 of the Identity API, the separation between the admin functionality and public functionality is handled within a single API. You will notice in the preceding configuration that the /v3 value is api_v3 for both the main composite app and the admin composite app.
+
+When Keystone is operating properly, it provides two APIs: the Service API and the Administration API. The Service API runs on port 5000 and the Admin API runs on port 35357. In the OpenStack Juno release and earlier, the common way of running these APIs was via an Eventlet-based process. In the Kilo release and those thereafter, the recommended method to run the Keystone APIs is via a WSGI server. We'll take a look at how to troubleshoot each of these methods in the following sections.
+
+2.Running Keystone under Eventlet:
+==================================
+If you are running Keystone using the Eventlet-based process, you will use the keystone-all command to start the Keystone services. This command will start both the Service API and the Administration API in a single process.
+
+Checking the Keystone service:
+------------------------------
+You can confirm that Keystone was started successfully by running ps -aux | grep keystone, which should show you several keystone-all processes. The output should look similar to the following output:
+
+# ps -aux | grep keystone
+# pgrep -l keystone
+
+Checking the Keystone client:
+-----------------------------
+You can use the openstack client or the keystone command-line client to double check whether Keystone is running properly. Before you use the client, make sure that you have sourced the credentials in your openrc file or be prepared to pass the required auth attributes in with the command. If you forget to take one of these steps, you may see an error like the following one:
+
+# OpenStack user list 
+
+"ERROR: MISSING PARAMETERS"
+
+In the examples that follow, we have sourced the openrc file where environment variables have been set for the auth attributes. For more information on how to create and source openrc files, refer to the OpenStack documentation at http://docs.openstack.org/cli-reference/common/cli_set_environment_variables_using_openstack_rc.html or check out OpenStack Cloud Computing Cookbook by Jackson, Bunch, and Sigler.
+
+You can test Keystone by executing the following command:
+
+# keystone user-list
+
+If Keystone is running properly, you will see a list of users that you have loaded into Keystone:
+
+O?P:SUCCESS
+
+Checking the OpenStack Client:
+-------------------------------
+You can also use the new OpenStack Client to check Keystone. Run the following OpenStack Client command:
+
+# openstack user list
+
+The value returned should be similar to this one:
+
+Tip:
+----
+The OpenStack Client is the preferred command-line client when working with OpenStack. This unified client allows users to execute functions across all the OpenStack projects. Nowadays, the historical project-specific command-line clients, such as the keystone client, are being deprecated in favor of the unified OpenStack client.
+
+The client debug mode:
+
+The legacy Keystone client and the OpenStack client each have a debug option. You can run a command in the debug mode by passing in the --debug argument. Take this code as an example:
+
+keystone --debug tenant-list
+openstack --debug project list
+
+Running commands with the --debug argument will cause debug lines to be printed to the console. This debug information may include details of the API request sent by the command-line tool and the response body details sent back from the API. This information often contains useful clues that can aid you in troubleshooting.
+
+
+Checking the API:
+-----------------
+To confirm that the APIs have started up on the expected ports, you can run the following curl command to test the API:
+
+Curl -i \
+    -H "Content-Type: application/json" \
+    -d '
+   {
+     "auth": {
+        "Identity" : {
+          "Methods" : [
+             "Password"
+          ],
+          "Password": {
+             "User":{
+             "name":{
+             "Domain":{
+                "id": "default"
+            },
+            "Password": "secrete"
+           }
+       }
+   }
+ }
+
+}, \
+   http://localhost:5000/v3/auth/tokens; echo
+
+Let's take a closer look at the preceding curl command:
+
+•	Line 1: Here, we call the curl command with the -i option, which is the include option. It indicates that we want the HTTP-header included in the output.
+•	Line 2: In this line, we set the content type header to be JSON, as the OpenStack API's speak JSON.
+•	Line 3: Here, we use the -d option to indicate the data that we are going to POST to the server. Following this line is JSON that we are going to send in the body of our request.
+•	Line 8: Here, we are indicating that we will authenticate with a password.
+•	Line 10-16: In these lines, we provide the password object that includes a user, username, domain, and password.
+
+This API call should return a response similar to the following one:
+
+
+{
+  "Token":{
+    "Methods":[
+      "Passwords"
+  ],
+  "expires_at": "date"
+  "extras": {}
+  "User":{
+    "Domain": {
+       "Id": "default"
+       "Name": "Default"
+     },
+      "Id": "################",
+      "Name": "admin"
+   },
+   "audit_ids": [
+      "############"
+],
+ "issued_at": "date"
+}
+}
+
+•	Line 6: Here, we have the expiration date/time for the auth token.
+•	Line 13: This line displays the actual auth token that we would use with future requests.
+
+
+Keystone process not starting:
+------------------------------
+If Keystone doesn't start, there are a couple of areas you want to check. First, check for the keystone processes using pgrep -l keystone or ps -aux | grep keystone, as described in the preceding section. 
+Typically, you will see multiple keystone-all processes running. If you only see one, you may want to double check things. Take a look at the Keystone log file. The log files are located at /var/log/
+keystone/keystone.log. In the log file, look out for a line similar to this one:
+
+ Parent process has died unexpectedly, exiting
+
+In addition, when you try to run a command from the Keystone client or the OpenStack client, you may see an error similar to this one:
+ 
+Unable to establish connection
+
+If you try to do a cURL call when Keystone is in this state, you may see an error like the following in response:
+
+Error code explanation: 501 = Server does not support this operation.
+
+One of the reasons for the preceding errors is that there is something else running on one of Keystone's ports. Keystone will attempt to start up on ports 5000 and 35357.
+
+You can check which process is running on those ports by running this command:
+
+#lsof -i :35357 -S
+#lsof -i :5000 -S
+
+
+Finally, you can attempt to start Keystone manually and check whether any errors are printed to the console during startup. To start Keystone manually, you would run a command similar to the following one, taking a note to modify the configuration values in order to match your deployment:
+
+# sudo -u keystone /usr/local/bin/keystone-all --config-file=/etc/keystone/keystone.conf  --log-file=/var/log/keystone/keystone.log
+
+
+Database stopped:
+-----------------
+Consider a situation where Keystone appears to have started but hangs when you run a command such as keystone tenant-list and eventually returns with an error similar to this:
+
+Authorization Failed: An unexpected error prevented the server from fulfilling your request. (HTTP 500)
+
+Or, consider a situation where your API calls return with an error similar to this:
+
+HTTP/1.1 500 Internal Server Error
+Vary: X-Auth-Token
+Content-Type: application/json
+Content-Length: 143
+X-Openstack-Request-Id: req-98cb32c0-c942-41c7-9a3d-90e6aed95eb3
+Date: Tue, 08 Sep 2015 02:53:00 GMT
+{"error": {"message": "An unexpected error prevented the server from fulfilling your request.", "code": 500, "title": "Internal Server Error"}}
+
+In such cases, we need to check the Keystone log file that is typically located at /var/log/keystone/keystone.log. Be on the lookout for DBConnectionError.
+
+If your logs contain this error, make sure that your database is up and running and accessible at the address and port recorded in the keystone.conf configuration file. You can find the database string in the section of the config file labeled [database]. The configuration option is titled connection. Double check the database configuration string to make sure it is correct; then, make sure that the 
+database is running and accessible. An example of the database section in keystone.conf looks like this:
+
+[database]
+connection = mysql://keystone:keystone@mydbserver.com/keystone
+
+
+You can try to connect to the database directly in order to confirm that it is running and configured as expected. You can connect to mysql using a command like the following one:
+
+# mysql -u keystone -p -h mydbserver.com keystone
+
+You will be prompted for a password, at which time you should enter the same password that appears between : and @ in your connection string. Once you are connected to the Keystone database in MySQL, you can run the show tables command to confirm that the Keystone tables have been created. If this command comes back empty, this means that you need to initialize your database. To initialize the Keystone database, we leverage a command-line tool called keystone-manage. The database is initialized when you run the following command:
+
+# keystone-manage db_sync
+
+
+The service catalog endpoint:
+------------------------------
+One potential source of problems with Keystone is the misconfiguration of Keystone endpoints. One of the functions that Keystone provides for OpenStack is the Service Catalog functionality. The service catalog tracks and displays all the endpoints for each of the OpenStack services including Keystone itself. You can view the endpoint entry for Keystone by running this:
+
+#  openstack endpoint show keystone
+
+This command will return something similar to the following output:
+
+SUCECSS O\P
+
+Check the ports for adminurl, making sure that it is using the admin port, which is 35357 or $(admin_port)/s. Check the internalurl and publicurl ports and make sure they are set to 5000 or $(public_port)/s. If the ports are configured incorrectly on the endpoints, this could result in we not being able to execute Keystone functions.
+
+
+Running under WSGI:
+-------------------
+With the Kilo release of OpenStack, the recommended method to run the Keystone API is via WSGI, for example, an Apache web server running the mod_wsgi module. If you run into trouble while running 
+Keystone via WSGI, there are a few things you want to check, which are listed as follows:
+
+1.	Make sure that the mod_wsgi Apache module is installed
+2.	Check wsgi-keystone.conf
+3.	Check the keystone-wsgi-admin and keystone-wsgi-public files
+4.	Confirm that Keystone is not running under Eventlet
+
+mod_wsgi:  
+---------
+First, make sure that you source your credentials in your openrc file; then, try to run one of the keystone commands:
+
+# openstack user list
+# keystone user-list
+
+If you get an Invalid command error like the one listed in the following code, make sure you install mod_wsgi:
+Invalid command 'WSGIDaemonProcess', perhaps misspelled or defined by a module not included in the server configuration
+
+You can install mod_wsgi as follows:
+
+# apt-get install libapache2-mod-wsgi
+
+
+wsgi-keystone.conf:
+-------------------
+Second, make sure you have the wsgi-keystone.conf file copied to the /etc/apache2/sites-available directory. An example of this file is located at http://tinyurl.com/jnobwbt.
+Also, make sure that you have symlinked the /etc/apache2/sites-available/wsgi-keystone.conf file to /etc/apache2/sites-enabled/wsgi-keystone.conf. You can accomplish this by running this code snippet:
+
+# ln -s /etc/apache2/sites-available/wsgi-keystone.conf /etc/apache2/sites-enabled
+
+Note:
+------
+The preceding command returns no output when it is completed successfully. You can confirm that it was successful by running ls -l, where you will see the symlink.
+
+
+Stopping the Eventlet process:
+------------------------------
+
+When you attempt to start Apache with the new wsgi-keystone.conf file and you receive this error, make sure you don't have the Eventlet version of Keystone running:
+
+(98)Address already in use: AH00072: make_sock: could not bind to address [::]:5000
+(98)Address already in use: AH00072: make_sock: could not bind to address 0.0.0.0:5000
+no listening sockets available, shutting down
+
+You can stop the Eventlet process by running the following command:
+
+stop keystone
+
+After stopping the Keystone Eventlet process, restart Apache and watch /var/log/apache2/keystone.log to confirm that the service has started successfully.
+
+Checking WSGI files:
+---------------------
+If you attempt to run the Openstack user list and you receive an error like the following one, check the keystone.log file in Apache:
+
+Authorization Failed: Not Found (HTTP 404)
+
+On Ubuntu, this file is located at /var/log/apache2/keystone.log.
+
+If you see the preceding error, you need to do the following:
+
+•	Check the paths and location of the WSGI files in the WSGIScriptAlias attribute of /etc/apache2/sites-available/wsgi-keystone.conf
+•	Make sure that the keystone-wsgi-admin and keystone-wsgi-public files exist in the /usr/local/bin/ directory
+
+Checking the Keystone service:
+------------------------------
+Much like we did when running Keystone with Eventlet, we can also check the Keystone service when running it under WSGI by executing the following command:
+
+# ps –aux | grep keystone
+
+When running Keystone in Apache, the results of this command will look similar to the following output:
+
+If you happen to run this command and it doesn't return wsgi processes, you will want to make sure that Apache is running and that Keystone has been correctly configured to run under WSGI.
+
+===============================================================================================================================================================================================================
