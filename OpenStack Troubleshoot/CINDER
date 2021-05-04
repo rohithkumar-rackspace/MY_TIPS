@@ -1,0 +1,154 @@
+=========================================================================================
+Troubleshooting OpenStack Block Storage
+==========================================================================================================================================================================================================
+Cinder is the OpenStack service that provides persistent block storage for your Nova instances. Cinder block storage is like an external hard drive or USB drive for your instance, in that it can only be attached to one instance at a time. Cinder boasts a pluggable architecture, allowing OpenStack operators to leverage several backend storage plugins, for different types of storage. The supported plugins include Ceph, Sheepdog, NFS, Gluster, LVM, and others. While Cinder supports many storage drivers, we will focus on Linux Volume Manager (LVM)
+
+1.Cinder processes:
+====================
+A working Cinder installation will have several processes running. Say, for example, you run the following command:
+
+# ps –aux | grep cinder
+
+After this, you should see an output similar to the output shown here
+
+Successful o/p should come
+
+You will note that there are several cinder-api processes, several cinder-volume processes, and a cinder-scheduler process. When troubleshooting Cinder, you want to make sure that these three processes are up and successfully running. If one of the processes isn't running for some reason, you can use the respective start commands given here on Ubuntu systems using upstart:
+
+# start cinder-api
+# start cinder-volume
+# start cinder-scheduler
+
+If you have trouble starting any of the processes using the upstart scripts, you may want to try and start them manually, where you will be able to see any errors that are being thrown on startup. To start the process manually, use the following command:
+
+# sudo -u cinder cinder-api --config-file=/etc/cinder/cinder.conf --log-file=/var/log/cinder/cinder-api.log
+
+# sudo -u cinder cinder-scheduler --config-file=/etc/cinder/cinder.conf --log-file=/var/log/cinder/cinder-scheduler.log
+
+# sudo -u cinder cinder-volume --config-file=/etc/cinder/cinder.conf --log-file=/var/log/cinder/cinder-volume.log
+
+
+It may also be helpful to double-check that the Cinder service is running correctly by executing the service-list command of Cinder:
+
+# cinder service-list
+
+This command will output the status of the Cinder scheduler and volume service as displayed in the following screenshot:
+
+List all services
+
+You want to pay special attention to the State column for each process and make sure that it is up. If it isn't up, you can use the preceding methods that we've outlined to attempt to get it started.
+
+Logging:
+========
+
+It is worth pointing out that the log files for Cinder are typically located at /var/log/cinder/. In this directory, there will be log files for the API, the volume and scheduler service of Cinder. If you have trouble getting any of the Cinder process to start, you may want to check the logs for any clues. You may find it helpful to grep the logs for errors using a command similar to the one given here:
+
+# less /var/log/cinder/volume.log | grep ERROR
+
+This command will allow you to see all of the error lines in the volume log file. Running the command is a very quick way to locate errors in the logs and identify clues that might help you resolve the issue.
+
+==========================================================================================================================================================================================================
+2.Cinder dependencies:
+========================
+
+Like most other OpenStack services, Cinder has dependencies on other OpenStack components. These components must be present and operate successfully in order for Cinder to do its job. In a troubleshooting scenario, you want to check these dependencies and confirm that they are up and running.
+
+
+Keystone authentication problems:
+---------------------------------
+Cinder leverages Keystone to provide authentication and authorization services. If the Keystone service is not running, it shouldn't take long for you to see the result. If you run a cinder command, such as cinder list or cinder create without running Keystone, you will see an error like the one shown here:
+
+"ERROR: unable to establish connection to http://127.0.0.1:35357/v2.0/tokens"
+
+In this case, you want to check and make sure that the Keystone service is up and running. Refer to Chapter 2, Troubleshooting OpenStack Identity, for details on how to make sure that Keystone is running successfully. Imagine a scenario where you have confirmed that Keystone is up and running and yet when you run a cinder command you receive an error similar to the following:
+
+ERROR: Service UnAvailable HRRP: 503
+
+In this case, you want to check the Cinder API log at /var/log/cinder/api.log. You are looking for a CRITICAL line or INFO line like the ones shown here:
+
+"WARNING keystonemiddleware.auth_token[-] Identity response: {"error": {message":"Invalid user / password ( Disable debug mode to suppress these details.)","code":401,"title":unauthorised"}}
+
+CRITICAL keystone middle.ware.auth_token[-] unable to validate token: Identity server rejected authorisation necessary to fetch token data"
+
+
+The preceding error provides a clue that there is a problem with the authorization credentials that are used to fetch the auth token. In this case, you want to double-check the password of the cinder user as indicated in /etc/cinder/cinder.conf. Make sure that the credentials match the values loaded in Keystone for that user.
+
+RabbitMQ problems:
+------------------
+Cinder makes use of an AMQP server, which is typically provided by RabbitMQ in OpenStack installations. You want to confirm that RabbitMQ is up and running correctly. Suppose that you attempt to run a cinder create command such as this:
+
+# cinder create --name MyVol 1
+
+If the preceding command hangs with no output, then check your Cinder api log at /var/log/cinder/api.log:
+
+
+"ERROR Oslo.messaging._drivers.impl_rabbit[req-233222-3333-333-333---] AMQP Server on 127.0.0.1:5672 is unreachable: [Error 111] ENCONNREFSED. Trying again in 4 seconds."
+
+
+The preceding error is an example of what you will see when Cinder is unable to connect to your message broker. Cinder will keep trying to reconnect, and you will likely see a series of similar log lines in api.log. In this case, confirm that your AMQP server is up and running at the location indicated at /etc/cinder/cinder.conf.
+
+=========================================================================================================================================================================================================
+3.Cinder errors:
+===================
+
+In this section, we will explore a few of the more common errors you might encounter with Cinder. While we highlight just a few of the errors you may come across, the troubleshooting techniques we illustrate should be helpful in various troubleshooting situations.
+
+
+Missing the cinder-volumes volume group:
+----------------------------------------
+When using LVM to back Cinder, OpenStack expects there to be a volume group named cinder-volumes. When running the vgdisplay command, you can check for the cinder-volumes volume group as shown here:
+
+#vgdisplay
+
+If you attempt to create cinder volume without having a volume group named cinder-volumes, it's very likely that your volume will end up in an error state as illustrated in the following screenshot with MyVol2:
+
+# Cinder list
+
+You can further confirm that this is the issue by checking the scheduler log at /var/log/cinder/scheduler.log file. In this log file, you are looking for an error similar to the one shown here:
+
+"Chdhhd-shdhgd-chdhdgd-hd cinder-volumes -L 2g\nExit code: 5\nStdout: u\'\'\nStderr:u\' Volume Group "cinder-volumes" not found\\n\'\n'"
+
+The last line in the log file may point to the fact that No valid host was found, but if you look further up in the log, you will note the logline that says Volume group cinder-volumes not found. This is a clue that points to the fact that you are missing a volume group named cinder-volumes. To resolve this issue, you can rename your volume group by running vgrename as in the following example:
+
+# vgrename my-volumes cinder-volumes
+
+You can confirm the rename by running vgdisplay again and make sure that the value of the VG Name line is cinder-volumes.
+
+The volume stuck in the creating state:
+---------------------------------------
+
+At some point, you may find yourself in a situation where you have a Cinder volume stuck in the creating state. An example of this is the last volume in the following output:
+
+# Cinder list 
+
+"Result: volumes is in creating state stuck"
+
+The problem with having a volume stuck in the creating state is that Cinder will not let you delete it. When you attempt to delete a volume in this state, you will receive an error similar to the one given here:
+
+Delete for volume 87395813-5d5d-4587-a708-8bff4e5c9daf
+
+ failed: Invalid volume: Volume status must be available or error, but current status is: creating. (HTTP 400) (Request-ID: req-20d4120a-9c91-466b-8e6b-f0b76f4356de)
+ERROR: Unable to delete any of the specified volumes.
+
+As illustrated in the preceding error, Cinder will not let you delete a volume unless it is in the Available or Error state. To fix this issue, you can run the cinder reset-state command:
+
+# cinder reset-state 87395813-5d5d-4587-a708-8bff4e5c9daf
+
+
+After running this command, the volume will be moved to the available or error state, after which you can use the delete command to remove the volume if it's in error, or you can attach the volume if it's available. Make sure that the ID passed into this command matches the ID of the volume you are targeting. This command changes the status of the volume in the database, so you need to make sure that the Cinder database is initialized and running as expected
+
+Insufficient free space:
+-------------------------
+
+If you attempt to create a volume only to be confronted with an error similar to the one here, then you may want to check a few things:
+Volume group "cinder-volumes" has insufficient free space
+If you are using LVM, then you can run vgdisplay to confirm the volume group size you are working with. If necessary, you can use vgextend to increase the size of the volume group.
+
+Not sending heartbeat:
+------------------------
+Suppose that during your troubleshooting, you come across a series of errors in the /var/log/cinder/volume.log file similar to the one given here:
+
+2015-10-19 05:01:38.492 2499 ERROR cinder.service [-] Manager for service cinder-volume tc-ost1 is reporting problems, not sending heartbeat. Service will appear "down".
+
+This error indicates that Cinder may not be running properly. To further troubleshoot the problem, look at the log entries that have been recorded just before the heartbeat errors appear. Here, you will likely find clues pointing to the cause of the root issue.
+===================================================================================================================================================================================================================
