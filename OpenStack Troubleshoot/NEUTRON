@@ -1,0 +1,138 @@
+====================================================================================
+Troubleshooting OpenStack Networking:
+====================================================================================
+Neutron is an OpenStack networking service. Neutron can be one of the most difficult OpenStack projects to troubleshoot. 
+
+1.Identifying Neutron issues:
+===========================
+The first hurdle in resolving networking issues in OpenStack is learning how to identify these issues when you see them. 
+There are some obvious signs of networking troubles, including the inability to ping one of your instances or the inability to access an instance via SSH. 
+There are also some less-obvious signs that may not appear to be a networking issue at all, but as you troubleshoot, you may discover that networking is indeed the culprit.
+
+2.Neutron services and agents:
+==============================
+A properly running Neutron service will launch several Linux processes. When troubleshooting, you will want to make sure that all services are configured 
+correctly and are running actively. If you run pgrep –l neutron, you should see a list of Neutron services, as shown in the following screenshot:
+
+# pgrep –l neutron
+
+Depending on how you have deployed Neutron, the services listed in the preceding screenshot may be spread across multiple servers. 
+For example, your neutron-server processes may be running on your controller node, all of the agents may be on your Network node, 
+and your Compute nodes may also be running some of the agents.
+
+To confirm that all the agents are running as expected, you can execute the neutron agent-list command. 
+The output of this will look similar to what is shown in the following screenshot:
+
+# neutron agent list
+
+When the agent is up and running, the alive column will have :-), and when the agent is not alive, the value will be xxx. If an agent is not alive and you are expecting it to be, you can attempt to start the agent. On Ubuntu, utilizing an Upstart script would be as simple as running start neutron-openvswitch or the equivalent of whichever agent you wanted to start. You can also attempt to start the agent manually by running the following command or the equivalent of the agent you are targeting:
+
+# sudo -u neutron neutron-openvswitch-agent --config-file=/etc/neutron/neutron.conf --config-file=/etc/neutron/plugins/ml2/ml2_conf.ini --log-file=/var/log/neutron/openvswitch-agent.log
+
+Attempting to start the agent this way will allow you to see any errors that may be thrown on the startup, allowing you to troubleshoot agent startup issues
+
+3.Neutron logs:
+================
+A good place to start is by having a look at the Neutron logs. By default, the neutron log files are located at the /var/log/neutron/ directory. However, the log file location can be overridden. You can determine where Neutron is logging by looking at the Neutron processes. Run the ps –aux | grep command and look for the value in the --log-file attribute. You can also check the settings for log_dir in the neutron.conf file.
+In the Neutron log directory, there should be several log files, one for the Neutron server, one for neutron-ns-metadata-proxy, and one for each of the agents. It's worth noting that if you do 
+
+not see logs for a particular service, it may be a sign that the service hasn't started properly. The following is an example of what your neutron log directory might look like:
+
+# server.log  dhcp-agent.log l3-agent.log  metadata-agent.log openvswitch-agent.log 
+
+
+It's good practice to check each log for errors, paying special attention to the timestamps. For example, we may start to examine the server.log file by running this:
+
+# less /var/log/neutron/server.log | grep ERROR
+
+Execute this command for each file in the Neutron log directory and investigate each error in turn. You may also want to enable verbose logging when troubleshooting. To enable verbose logging for Neutron, you will want to set verbose to True in the /etc/neutron/neutron.conf file.
+
+In the following section, we will work through some common networking problems, providing tips to identify and correct these issues.
+
+4.Common problems::
+===================
+In this section, we will examine some of the common networking problems that you might face in an OpenStack cluster. We will provide steps to troubleshoot issues, and we will offer potential solutions to resolve the issue. It's worth repeating that there are multiple ways to configure Neutron, so the steps you take to solve the following issues may be slightly different depending on your installation. However, these steps should be useful to point you in the right direction.
+
+
+When you can't ping an instance:
+--------------------------------
+If you have an active instance that you can't ping, there are a few things you want to check out. Working your way through the following steps should help you identify and correct the problem
+
+Security groups:
+Neutron uses security groups to control the access to instances. The access is controlled through IP filtering. Security groups are similar to ip tables rules of the instance. You can view a list of security groups by running this:
+
+# neutron security-group-list
+
+The preceding output prints each of the security groups and a summary of the rules under each security group. For example, in the rule listed previously, we see that instances in this security group have rules that allow egress on IPv4 and IPv6. You will also notice that the ingress rules for IPv4 and IPv6 refer to remote_group_id. The remote_group_id references the ID of a security group, and in this case, it is the same security group we are examining. This syntax is a shortcut that allows all instances in the security group indicated by remote_group_id to access the rule. So, in this case, all instances in the security group 1d4fa38b-d4f4-4f32-a814-c8758ceca1f8 will be allowed to receive ingress traffic from one another. If you spin up two or more instances in this security group, they will be able to pass traffic between each other.
+
+To see a view of all the rules across all security groups, you can run the following command:
+
+# neutron security-group-rule-list
+
+
+Note that the default security group listed in the preceding output has rules for the ICMP protocol and the TCP protocol on port 22. These rules allow ping and SSH, respectively. You 
+will also note that the remote value for the ping and SSH rules is set to 0.0.0.0/0. In this configuration, the ping and SSH request can come from any IP address on the network.
+If you are having trouble pinging your instance or accessing it via SSH, make sure that the security group for the instance allows SSH on port 22 and icmp. For example, to allow your instance to be pinged from a machine outside the instances' security group, you can run the following nova command:
+
+# nova secgroup-add-rule default icmp -1 -1 0.0.0.0/0
+
+The preceding command will add a rule to the default security group, allowing icmp traffic. The minimum and maximum ports are both set to -1, which will allow the ping to come over any port.
+
+Once the rule has been added using the preceding nova command, you can confirm that it has been saved by running the list command again, as recorded in the following line of command:
+# neutron security-group-rule-list
+
+This time, you should see the icmp rule returned in the output. Once the rule is present, you should be able to ping your instance, but there is one more concept that you need to be aware of. You may not be able to ping the instance using the standard syntax if your OpenStack installation is taking advantage of network namespaces.
+
+Network namespaces:
+===================
+
+OpenStack allows the use of Network namespaces. When this feature is leveraged, it allows us to overlap IP addresses in different virtual networks. When this feature is active, you need to indicate which network namespace to use when trying to reach an instance. You can list the network namespaces in use by running this command:
+
+# ip netns list
+
+To ping an instance in this network namespace, you would run your command through the iproute2 exec command:
+
+# ip netns exec qdhcp-7d3a9245-6837-4151-a0e2-6f5c9b50ee21 ping 10.1.0.3
+
+No IP address:
+==============
+When you spin up a new instance, you usually expect that instance to have an IP address. However, there are situations where your instance may become active without an assigned IP. Consider the following example for instance 
+The preceding example displays an instance that has the Active Status and a of Running Power State. You will also notice that the Networks column is empty. There are a few obvious things you want to check in this case.
+
+# neutron net-create private
+# neutron subnet-create --name private-subnet private 10.1.0.0/28 
+
+
+5.Troubleshooting tools:
+=========================
+Neutron is incredible, powerful, and extensible. It supports plugins for dozens of backends, but the two most commonly installed backends are Open vSwitch and Linux Bridge. As a result, you can take advantage of many of the common Linux troubleshooting tools when working with Neutron. In this section, we'll cover some of the basic Neutron troubleshooting tools, including ovs-vsctl and iproute2.
+
+
+ovs-vsctl:
+----------
+This is used to configure and query Open vSwitch. This tool can be very useful when troubleshooting Neutron networks that leverage Open vSwith. For example, to see the contents of the configuration database, we can use the ovs-vsctl show command. Take the following example for instance:
+
+# ovs-vsctl show 
+
+
+There are a few things worth pointing out in the preceding output. You'll notice that there are two bridges, one named br-int and another named br-tun. On br-int, there are multiple ports. There is one port named tapa4391bff-da. This is the tap interface coming from our instance. You will also notice a port with a name that begins with qvo…; this is one end of a virtual Ethernet (veth) pair connected to the OVS bridge. You want to make sure that these two ports are present:
+
+# iproute2
+
+The IPRoute2 utility is a new collection to the tools that control TCP/IP traffic and networking in Linux. The iproute2 tools are designed to replace many of the legacy tools including ifconfig and route.
+
+There are several useful commands included in this utility. For example, the IP link command will list out the networking devices on this host.
+
+
+In the preceding output, we see br-int and br-tun again. We also see the tap device. We also see a device that starts with qvo and another that starts with qvb. The letter q here refers to Quantum, which was the original name of the OpenStack Networking project before it was changed to Neutron. The letter v indicates that this device is one side of a veth pair. The letter b indicates the side of the veth pair that's plugged into the Linux bridge, and the letter o indicates the side of the veth pair that's plugged into the OVS switch.
+The iproute2 has several other useful troubleshooting utilities, including ip route show, ip netns, and ip neigh.
+
+
+6.The Neutron client:
+======================
+The Neutron command-line client also has several useful tools for research and troubleshooting. In addition to the commands we've seen so far, here are a few more useful ones.
+The neutron port-list command allows you to see which ports have been created using neutron port-create. This output allows you to see the MAC address for each port as well as the IP address.
+
+#neutron port list 
+
+There are similar commands for routers, gateway devices, floating IPs, and more. Running the Neutron help command will give you the full list of the available tools
