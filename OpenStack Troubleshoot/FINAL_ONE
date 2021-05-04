@@ -1,0 +1,402 @@
+============================================================================================================================================================
+1.TROUBLESHOOTING OPENSTACK INFRA:
+============================================================================================================================================================
+*Read the operations guide: https:/docs.openstack.org/operations-guide/ops-maintenance.html
+---------------------------
+-Know your system to locate failure ( what components, how they work together)
+-understand the layers ( minimal understand from kernal up to client UI)
+-Learn the tools that can help in troubleshooting ( searching logs, checking statuses)
+-Reach out for help (community is amazing)
+
+Best approach to troubleshooting:
+---------------------------------
+*Avoid Troubles:
+----------------
+-monitoring,logging
+-Alerting
+-Blue-Green deployments
+-dev/staging environments
+-Log analytics, etc
+-infrastructure-as-code
+
+commands:
+---------
+# nova service-list
+# neutron agent-list
+# openstack compute service list
+# openstack neutron agent list
+
+https://aptira.com/training/troubleshooting-openstack-guide/
+==============================================================================================================================================================================================================================================================================
+Troubleshooting Controller:
+============================
+Controller is the most important component of openstack setup. Controller is responsible for proper communication between 
+all other components (computes, networks, storage etc). Controller runs message broker service and uses this to facilitate 
+communication between all pillars of a cloud. Controller also runs database service, and all other openstack services uses 
+this controller for the storage of their databases. Controller is usually the main face of the cloud, it is where dashboard 
+(horizon) is usually running and Controller’s interface may be exposed to external world for successfully access to the cloud. 
+If you are seeing errors on Controller, here are the log files you should check to identify and correct these errors.
+
+/var/log/keystone/keystone.log >  Check this file is you are facing authentication related errors on different services.
+/var/log/messages > Check this file if you are seeing errors on access among different cloud nodes.
+/var/log/firewalld > Check this file if you are having hard time getting your services to bind to certain ports/IPs.
+
+Here are the services that must be running on Controller node(s), if any one of them is failing, your cloud must be showing errors 
+(Use following commands to verify services status on CentOS system, you can use similiar utility for Ubuntu to verify service’s status).
+
+systemctl status httpd.service
+systemctl status memcached.service 
+systemctl status mariadb
+systemctl status ntpd
+----------------------------------------
+====================================================================================================================================================================================================================================================================
+Troubleshooting Openstack Compute:
+==================================
+Compute is the main component that is used to store data about virtual machines and their related aspects. 
+Compute can be a single node or a set of nodes, depending on your infrastructure. If you are unable to launch 
+new instances, then its 90% sure that something might be messed up on Compute component. Compute related issues
+ can be troubleshooted on both Controller and Compute nodes. Here are some common log files you should peek into 
+ if you are seeing compute related errors.
+
+/var/log/nova/nova-api.log >  This log file is located on both controller and compute nodes. Open this file to see whats exactly error your compute component is throwing when using compute related operation from horizon or command line.
+/var/log/nova/nova-cert.log > Check this file if you compute node is throwing errors related to secure layer protocol. This file will be available on controller node only.
+/var/log/nova/nova-novncproxy.log > If you are able to launch instances but can not access their VNC console, then this is the correct log file to look for. It is located on Controller node only.
+/var/log/nova/nova-compute.log > This is the most important log file and is located on Compute nodes only. If you are unable to launch new instances, use this log file to identify the exact source of problem.
+/var/log/nova/nova-api-metadata.log > If your openstack instances are complaining about instance’s meta data , you should check this file on both Controller and Compute nodes to find out the problem.
+In case of compute related errors, always make sure that all required services are up and running. Here are the compute services that should always be in running status.
+Following compute related services should be in “Running” status on Controller nodes.
+
+systemctl status openstack-nova-api.service
+systemctl status openstack-nova-cert.service
+systemctl status openstack-nova-consoleauth.service
+systemctl status openstack-nova-scheduler.service
+systemctl status openstack-nova-conductor.service
+
+Following services should be in “Running” status on Compute nodes.
+systemctl status libvirtd.service
+systemctl status openstack-nova-compute.service
+
+=============================================================================================================================================================================================================================================================================
+Troubleshooting Networking (Neutron) Component:
+================================================
+Neutron is the networking component for openstack, you need to create networks, routers, VPNs etc in this component and all traffic coming into openstack cloud is first filtered at Neutron level, so in order to achieve network connectivity and enable inter communication among virtual machines, Neutron should be working fine. In old versions of Openstack, neutron was the part of Compute (Nova), but in recent release, openstack development team has removed it from Nova and made it a seperate component. Lot of features are being added to Neutron so that it may cope with growing needs of modern day network virtualization. Neutron/Network is usually an independent node just like Controller and Compute, but sometimes, Controller and Neutron components are installed on the same machine, which works too. Let’s see how to troubleshoot Neutron related issues and which services should be running on Controller, Compute and Network node for sucessful working of Neutron.
+/var/log/neutron/server.log > If you are unable to create networks or routers, this is the very first log file to check. It is located on Neutron/Network node.
+/var/log/neutron/openvswitch-agent.log  > It is located on both Network and Compute nodes. If your virtual machines are failing to reach external network or virtual routers, you should check this file for identifying the exact errors.
+
+/var/log/neutron/metadata-agent.log >  This file can be found on either Controller or Compute node. It stores common neutron errors with respect to metadata.
+/var/log/neutron/vpn-agent.log > If you have VPN component of Neutron enabled, then this log file will store VPN related error logs. If your site-to-site VPNs are not working or you are having issues with IPSEC, this is the place to look for root cause of problem.
+Alright, lets see which services need to be in running status on Controller, Compute and Neutron nodes.
+On Controller node, make sure following command returns service status as “Running”:
+
+systemctl status neutron-server.service
+
+Following are the commands to verify that all neutron related services are running fine on Network Node. If any one of the followings returns failed status, Neutron is likely to not function to its fullest.
+
+systemctl status neutron-openvswitch-agent.service
+systemctl status neutron-l3-agent.service
+systemctl status neutron-dhcp-agent.service neutron-metadata-agent.service
+
+Following are the services that must be in “Running” state on Compute nodes.
+ 
+systemctl status openvswitch.service
+systemctl status neutron-openvswitch-agent.service
+================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================
+===============================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================
+2.TROUBLESHOOTING OPENSTACK SERVICES:
+======================================
+2.1.Keystone Identity Service:
+===============================
+- Keystone is the central OpenStack authentication service and utilizes the Apache web server for its frontend web server.
+  All users and OpenStack services are required to authenticate to Keystone
+
+- Provides API client authentication, service discovery, and distributed multi-tenant authorization. Administrator level 
+  access that bypasses users, tenants, roles, services and endpoints. 
+
+ports:
+------
+apache2         port:5000
+glance-api      port:9292
+nova-api        port:8774
+neutron-server  port:9696
+cinder-api      port:8776
+heat-api        port:8004
+swift-proxy     port:8080
+
+Logs:
+-----
+The corresponding log file of each Identity service is stored in the "/var/log/keystone/" directory of the host on which each service runs.
+
+# /var/log/keystone/keystone.log
+
+Keystone logs: /var/log/keystone and /var/log/httpd/keystone_wsgi_*.log (if Keystone is running as an Apache wsgi application).
+-------------
+Troubleshooting:
+----------------
+Show detailed output: set debug=True in /etc/keystone/keystone.conf 
+===============================================================================================================================================================================================================================================================================================================================================================================================================================================
+2.2.GLANCE OPENSTACK IMAGE SERVICE:
+====================================
+glance-api port 9292.
+---------------------
+Openstack image service is also called Glance, it is the service which is responsible for storing cloud images for various operating systems 
+and our openstack setup uses these images to spin up new instances. Glance is not as complex componet as Neutron or compute, so its pretty 
+easy to troubleshoot. Let’s see which log files to view in case of problems with Glance images. Please note that Glance is usually installed 
+on the Controller node, so you should be seeing following mentioned files/services on Controller component.
+
+Glance Architectuire: Glance-api, Glance-registry.
+---------------------
+
+#/var/log/glance/api.log > This file stores all communication between Glance and Openstack Dashboard, so 
+if you are unable to perform any Glance related operation from Horizon, check logs in this files to find 
+out the exact cause of problem.
+
+#/var/log/glance/registry.log > It’s another file to look for when facing problem with Glance and its 
+flavors, this file stores logs for different operations between keystone, glance, and compute.
+
+On Controller node,  following command should return service status as “Running”; otherwise your openstack setup will be unable to launch new instances and existing instances will show unpredictable behavior.
+
+# systemctl status openstack-glance-api.service
+# systemctl status openstack-glance-registry.service
+
+Logs:
+------
+# Glance-api logs: /var/log/glance/api.log
+# Glance-glare logs: /var/log/glance/glare.log
+# Glance-registry logs: /var/log/glance/registry.log
+
+Troubleshooting:
+-----------------
+Show detailed output: set debug=True in:
+Glance-api logs: /var/log/glance/api.log
+Glance-glare logs: /var/log/glance/glare.log
+Glance-registry logs: /var/log/glance/registry.log
+=============================================================================================================================================================================================================================================================================================================================================
+2.3.NOVA  OPENSTACK COMPUTE SERVICE:
+--------------------------------------
+Massively scalable, on demand, self service access to compute resources. Nova has multiple components: api, cert, conductor, 
+consoleauth, scheduler, novncproxy. 
+
+Nova-Architectuire: nova-api, nova-scheduler, nova-conductor, nova-novncproxy, nova-consoleauth, nova-compute.
+-------------------
+LOGS:
+-----
+Components logs:
+----------------
+# /var/log/nova/nova-­api.log-------->This log file is located on both controller and compute nodes. Open this file to see whats exactly error your compute component is throwing when using compute related operation from horizon or command line.
+# /var/log/nova/nova-­cert.log-------->Check this file if you compute node is throwing errors related to secure layer protocol. This file will be available on controller node only.
+# /var/log/nova/nova-­conductor.log---->
+# /var/log/nova/nova-­consoleauth.log---->
+# /var/log/nova/nova-­scheduler.log----->
+# /var/log/nova/nova-­novncproxy.log------>If you are able to launch instances but can not access their VNC console, then this is the correct log file to look for. It is located on Controller node only.
+# /var/log/nova/nova-api-metadata.log------> If your openstack instances are complaining about instance’s meta data , you should check this file on both Controller and Compute nodes to find out the problem.
+# /var/log/nova/nova-compute.log ---------> This is the most important log file and is located on Compute nodes only. If you are unable to launch new instances, use this log file to identify the exact source of problem.
+
+Instance specification: /var/lib/nova/instances/INSTANCE_UUID/libvirt.xml
+-----------------------
+Instance dmesg output: /var/lib/nova/instances/INSTANCE_UUID/console.log
+------------------------
+Libvirt instance log: /var/log/libvirt/qemu/instance-INSTANCE_UUID.log
+----------------------
+
+SERVICES:
+---------
+In case of compute related errors, always make sure that all required services are up and running. Here are the compute services that should 
+always be in running status.
+
+Following compute related services should be in “Running” status on Controller nodes.
+
+# systemctl status openstack-nova-api.service
+# systemctl status openstack-nova-cert.service
+# systemctl status openstack-nova-consoleauth.service
+# systemctl status openstack-nova-scheduler.service
+# systemctl status openstack-nova-conductor.service
+
+Following services should be in “Running” status on Compute nodes.
+
+# systemctl status libvirtd.service
+# systemctl status openstack-nova-compute.service
+
+Troubleshooting:
+-----------------
+- Show detailed output: set debug=True in /etc/nova/nova.conf
+- See state of nova components in the control and compute planes: nova service-list (as user with admin role)
+- Verify nova can correctly proxy image API calls to glance: nova image-­list
+- Verify nova can correctly proxy network API calls to neutron: nova secgroup­-list or nova net-­list
+- Verify nova can correctly proxy storage API calls to cinder: nova volume­-list
+- Check VM configuration and status with libvirt tools: virsh
+
+==============================================================================================================================================================================================================================================================================================================================================================
+2.4. NEUTRON OPENSTACK NETWORK SERVICE: & NEUTRON NODE:
+===========================================================================================================================================================================================================================================================================================================
+Provides network connectivity as a service between interface devices.
+
+Neutron-Architectuire: Neutron-Server, neutron-dhcp-agent, neutron-L3-agent, neutron-metadata-agent, neutron-linuxbridge-agent
+----------------------
+
+Logs:
+-----
+- Neutron-server logs: /var/log/neutron/server.log
+- Neutron plugins & agents logs: /var/log/neutron/
+
+
+/var/log/neutron/server.log > If you are unable to create networks or routers, this is the very first log file to check. It is located on Neutron/Network node.
+/var/log/neutron/openvswitch-agent.log  > It is located on both Network and Compute nodes. If your virtual machines are failing to reach external network or virtual routers, you should check this file for identifying the exact errors.
+
+/var/log/neutron/metadata-agent.log >  This file can be found on either Controller or Compute node. It stores common neutron errors with respect to metadata.
+/var/log/neutron/vpn-agent.log > If you have VPN component of Neutron enabled, then this log file will store VPN related error logs. If your site-to-site VPNs are not working or you are having issues with IPSEC, this is the place to look for root cause of problem.
+
+SERVICES:
+----------
+Alright, lets see which services need to be in running status on Controller, Compute and Neutron nodes.
+
+On Controller node, make sure following command returns service status as “Running”:
+
+# systemctl status neutron-server.service
+
+Following are the commands to verify that all neutron related services are running fine on Network Node. If any one of the followings returns failed status, Neutron is likely to not function to its fullest.
+
+# systemctl status neutron-openvswitch-agent.service
+# systemctl status neutron-l3-agent.service
+# systemctl status neutron-dhcp-agent.service neutron-metadata-agent.service
+
+Following are the services that must be in “Running” state on Compute nodes.
+ 
+# systemctl status openvswitch.service
+# systemctl status neutron-openvswitch-agent.service
+
+Troubleshooting:
+----------------
+- Show detailed output: set debug=True in /etc/neutron/neutron.conf
+- See state of neutron agents running in the network and compute plane: run neutron agent-­list (as user with admin role)
+- Show detailed output for Neutron Plugins & Agent logs: set debug=True in the appropriate agent or plugin INI file
+- Check network configuration and ip namespace: ip -o addr
+- Check ip namespace: ip netns
+- Check OpenVSwitch bridges and ports: ovs-vsctl show
+- Check OpenVSwitch datapath and packets: ovs-dpctl
+- Packet analysis: tcpdump
+=============================================================================================================================================================================================================================================================================================================================================================================================================================================================================================
+=================================================================================================================================================================================================================================================================================================================================================================================================================================================================================
+2.5.CINDER OPENSTACK BLOCK STORAGE SERVICE:
+============================================
+Cinder is designed to present storage resources to end users that can be consumed by the OpenStack Compute Project (Nova). 
+Cinder has four components: api, backup, scheduler and volume. 
+
+Cinder-Architectuire:
+----------------------
+-Cinder-Api,Cinder-Scheduler,Cinder-Volume,Cinder-Backup.
+
+Logs:
+-----
+Most Block Storage errors are caused by incorrect volume configurations that result in volume creation failures. you can review below logs:
+# Cinder-api logs: /var/log/cinder/cinder-­api.log-----------> log is useful for determining if you have endpoint or connectivity issues.
+# Cinder-backup logs: /var/log/cinder/cinder-­backup.log----->
+# Cinder-scheduler logs: /var/log/cinder/cinder­-scheduler.log
+# Cinder-volume logs: /var/log/cinder/cinder­-volume.log---------> If the request is logged and you see no errors or tracebacks, check the cinder-volume log for errors or tracebacks.
+
+# less /var/log/cinder/volume.log | grep ERROR    --------To grep for ERRORS.
+
+
+Troubleshooting:
+-----------------
+- Show detailed output: set debug=True in /etc/cinder/cinder.conf -------------manin cinder config file in controller. or block storage nodes.
+- View state of cinder components in control and storage planes: cinder service-­list (as user with admin role)
+- LVM backend, use LVM commands to check volumes: lvs
+- your volumes stored in  "/var/lib/cinder/volumes/".
+Verify:
+-------
+# ps –aux | grep cinder  --------->Check cinder process in controller
+# cinder service-list    --------->check cinder services in controller
+# start cinder-api       
+# start cinder-volume
+# start cinder-scheduler
+# service openstack-cinder-volume restart
+# openstack-service restart
+
+Useful Links:
+--------------
+https://docs.openstack.org/cinder/latest/admin/ts-cinder-config.html
+https://subscription.packtpub.com/book/virtualization_and_cloud/9781783986880/6/ch06lvl1sec31/cinder-errors
+https://learning.oreilly.com/library/view/troubleshooting-openstack/9781783986880/ch06s02.html
+=====================================================================================================================================================================================================================================================================================================================================================================================================================
+=============================================================================================================================================================================================================================================================================================================================================================================================================
+2.6. SWIFT OPENSTACK OBJECT STORAGE SERVICE:
+=============================================
+Cloud storage software to store and retrieve lots of data with a simple API. Ideal for storing unstructured data that can grow without bound.
+
+Logs:
+-----
+• Swift log: /var/log/swift/*.log 
+
+Troubleshooting:
+-----------------
+- List objects: swift list
+- Create or download objects: swift upload/download
+- Show detailed output: change log_level in /etc/swift/*-server.conf and restart the corresponding service
+- Get swift object info: swift-object-info
+==========================================================================================================================================================================================================================================================================================================================================================================================
+====================================================================================================================================================================================================================================================================================================================================================================================================
+2.7. HEAT OPENSTACK HEAT ORCHESTRATION SERVICES:
+==================================================
+An orchestration engine to launch multiple composite cloud applications based on templates in the form of text files that can be 
+treated like code. Heat has two main components heat-api and heat-engine. 
+
+Heat-Architectuire: heat-api,heat-api-cfn, heat-engine.
+
+Logs:
+------
+# Heat-api log: /var/log/heat/heat-api.log
+# Heat-engine log: /var/log/heat/heat-engine.log
+
+Troubleshooting:
+----------------
+# List heat stacks: openstack stack list
+# Show details of a stack: openstack stack show STACK_UUID
+# List heat services running: openstack orchestration service list
+# Check if heat services are running: systemctl status openstack-heat-*
+
+=============================================================================================================================================================================================================================================================================================================================================================================================================
+=====================================================================================================================================================================================================================================================================================================================================================================================================================
+2.8. Telemetry Data Collection:
+=================================
+Telemetry is a project designed to reliably collect data on the utilization of the physical and virtual resources comprising 
+deployed clouds, persist these data for subsequent retrieval and analysis, and trigger actions when defined criteria are met.
+It consists of four projects: Aodh, Ceilometer, Gnocchi and Panko.
+ 
+Logs:
+------
+Aodh log: /var/log/aodh/*.log
+Ceilometer log: /var/log/ceilometer/*.log
+Gnocchi log: /var/log/gnocchi/*.log
+Panko log: /var/log/panko/*.log
+
+Troubleshooting:
+-----------------
+-Show detailed output:
+- set debug=True in /etc/aodh/aodh.conf
+- set debug=True in /etc/aodh/ceilometer.conf
+- set debug=True in /etc/aodh/gnocchi.conf
+- set debug=True in /etc/aodh/panko.conf
+  
+  Check if processes are running:
+- systemctl status openstack-aodh-*
+- systemctl status openstack-ceilometer-*
+- systemctl status openstack-gnocchi-*
+- systemctl status openstack-panko-*
+    
+Note that their api services can run as Apache wsgi applications. In that case you need to check if apache is running.
+List metrics: openstack metric metric list
+
+===========================================================================================================================================================================================================================================================================================================================================================================================================================================================================================
+================================================================================================================================================================================================================================================================================================================================================================================================================================
+2.9.Openstack Dashboard (Horizon):
+===============================================
+Horizon is the dashboard for openstack, all operations within your cloud infrastructure are performed from Horizon. If your Horizon is not loading or not responding to external requests, its probably problem with Apache Web Server or Memcachd. Horizon uses Apache web server, so in order to troubleshoot errors related to Horizon, we need to go deeper into Web Server logs.
+/etc/httpd/logs/error_log > This file should contain apache web server error logs, check this file to find out the problems with Horizon Dashboard.
+
+Following services should be in “Running” state on Controller node for the successful operations of Dashboard.
+# systemctl status httpd.service
+# systemctl status memcached.service
+ 
+- The configuration of logging is set in the /etc/openstack_dashboard/local_settings.py file; if we have to modify the logging levels, 
+  we need to look at the logger_root and handler_file section of file/etc/keystone/logging.conf. 
+=========================================================================================================================================================================================================================================================================================================================================================================================================================================================================
