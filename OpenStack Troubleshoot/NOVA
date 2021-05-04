@@ -1,0 +1,479 @@
+=========================================================================================
+Troubleshooting OpenStack Compute:
+=========================================================================================
+Nova is one of the central services of OpenStack, and it is also one of the largest in terms of lines of code. It's also worth noting that Nova is one of the oldest OpenStack projects, and it has seen a lot of changes and development over the years. Nova leverages and interacts with many of the other OpenStack services.
+==========================================================================================================================================================================================================
+1.Checking the services::
+==========================================================================================================================================================================================================
+A successful Nova deployment will have multiple Nova services running, and, in addition, there will be multiple supporting services at play as well. A good first step when troubleshooting is to make sure that each of the services has been successfully initiated. We can check the various Nova services by running this command:
+
+# ps –aux | grep nova-
+
+Be sure to include a dash (-), as the Nova services are prefixed with nova-. There are a lot of Nova processes, and in the following sections, we will look at each of these processes. The processes that we will explore are as follows:
+
+•	nova-api
+•	nova-scheduler
+•	nova-conductor
+•	nova-compute
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+1.nova-api:
+============
+The Nova API service is usually run on the controller node. Nova supports an OpenStack API, which is the default, in addition to an AWS EC2 API. A request to port 8774 will be handled by the OpenStack API. A request to port 8773 will be handled by the AWS EC2 API. Nova also supports a metadata service, which will listen on port 8775.
+In order to confirm that the nova-api service is running, execute the following command:
+
+# ps -aux | grep nova-api
+
+When nova-api is running as expected, the output from this command will look like the output shown here:
+
+"SUCCESSFULL RESULT"
+
+If the Nova API is not running, the preceding ps -aux command that you ran will come back with just the grep command and no nova-api processes. Also, when you attempt to use the command-line client with Nova, you may encounter an error like the following one:
+
+" Unable to Establish connection to http://127.0.0.1:8774/v2/ccccnnnnccccnnnncccnnn/servers/detail"
+
+This is your first clue to any problems with the nova-api service. Your first course of action will be to attempt to start the nova-api service. On Ubuntu systems that use upstart, you can run this command:
+
+# start nova-api
+
+Once you start the service, you should make sure that it has actually started and continues running successfully. At this point, 
+you want to run ps –aux | grep nova-api again and make sure that the nova-api process is still up.
+
+
+# ps –aux | grep nova-api
+
+If the nova-api process isn't returned in the output, then I would recommend that you try to start the process manually. When you start an OpenStack process manually, that is, without the init scripts, any errors during startup will be printed to the console. If you are dealing with a process that fails on startup, your log files will most likely be empty. Starting the process manually will provide you with the clues that you need to troubleshoot further. To start the nova-api service manually, execute the following command:
+
+# sudo -u nova nova-api --config-file=/etc/nova/nova.conf
+
+
+As the preceding command is executed, you will see the start up values printed to the console. Toward the end of this output, you will need to look for the lines indicating that your APIs have started up:
+
+" 2016-01-17 21:42:43.289 21675 INFO nova.metadata.wsgi.server [-] (21675) wigs starting up on http://0.0.0.0:8775"
+
+If you do not see lines similar to the lines shown in the preceding code snippet, you will most likely be staring at an error somewhere in the output. The good news is that this error will provide sufficient information to determine what is stopping the service from starting. While we cannot cover every potential cause within the confines of this book, we will take a look at the following few potential causes.
+
+Address already in use:
+-----------------------
+Suppose that, when starting the nova-api service manually, you see an error like the one shown here:
+ERROR nova error: [Errno 98] Address already in use
+This error means that there is something else running on port 8774, which Nova uses for the API service. You can further troubleshoot this issue by running this command:
+
+# lsof -i :8774
+
+This command will tell you what is running on port 8774. Once you clear this port, you can attempt to start the nova-api service again by running start nova-api. As always, we want to check whether the nova-api process has started successfully by running the ps –aux | grep nova-api command. If the API has not started successfully, we can attempt to start it manually, as we did before, and look for the error output.
+
+
+The permission error:
+---------------------
+Suppose that, when you attempt to start the nova-api process manually, you receive an error like the one shown here:
+
+"File :/usr/local/python2.7/dist-packages/oslo_config/cfg.py", line 2 149, in __call__"
+Self._namespace._files_permission_denied"
+
+
+An error like the preceding one points to the fact that there is a permission or ownership problem with the Nova configuration file, typically located at /etc/nova/nova.conf:
+# chmod 644 /etc/nova/nova.conf 
+# chown nova:nova /etc/nova/nova.conf 
+
+The Nova configuration file needs to be readable by the Nova user. The preceding chmod and chown commands will set the proper permissions and ownership for this configuration file. After this fix, you can attempt to start the nova-api service again and verify that it is running successfully. If it doesn't start successfully, remember to check the nova-api.log file for clues.
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+2.nova-scheduler:
+==================
+The Nova scheduler service is responsible for selecting the compute node that will host a particular instance. If this service is not operating as expected, you will notice problems when trying to create new instances. To check whether the nova-scheduler service is running, we can use the following command:
+
+# ps -aux | grep nova-scheduler
+
+The output of this command should have a line similar to the following one:
+
+"SUCCESSFULL"
+
+If the Nova scheduler service does not start properly, there are a couple of things you should check. The first troubleshooting step should be attempting to start the nova-scheduler service manually. You can do this by running the following command:
+
+ # sudo -u nova /usr/bin/python /usr/local/bin/nova-scheduler --config-file=/etc/nova/nova.conf
+
+
+Any errors returned from this command should give you clues as to why the nova-scheduler service isn't starting. One error that you may see here is as follows:
+
+"File :/usr/local/python2.7/dist-packages/oslo_config/cfg.py", line 2 149, in __call__"
+Self._namespace._files_permission_denied"
+
+As we've seen before, the Nova configuration file located at /etc/nova/nova.conf needs to be readable by the Nova user. This error will cause problems with several Nova services, including the Nova scheduler. This problem can be resolved if you make sure that the configuration file is readable by the Nova user.
+
+Once you run the nova-scheduler service successfully, you may still discover problems with the service. Your troubleshooting process should continue by looking at the nova-scheduler log for clues. The nova-scheduler log is typically located at /etc/nova/nova-scheduler.log. It is helpful to grep this log for errors by using a command like the one shown here:
+
+# less /var/log/nova/nova-scheduler.log | grep 'ERROR'
+
+The output of this command will list any errors captured in the scheduler log files. There are a few errors to look out for in particular. To operate correctly, the Nova scheduler requires access to the OpenStack message broker and the Nova database.
+
+"2016-02-17 17:06:07.652 16404 ERROR Oslo.messaging._drivers.impl_rabbit [-] AMQP server on 127.0.0.1:5672 is unreachable: [Errno 111] ECONNREFUSED. Trying again in 4 seconds"
+
+
+The preceding error indicates that the nova-scheduler service is not able to connect to the AMQP server. In this instance, you want to make sure that the message broker is running and accessible. If you are using RabbitMQ, you can check its status by running this command:
+
+# rabbitmqctl status
+
+When the RabbitMQ service is not running, the output of this command will look similar to the output shown here:
+
+"Status of node 'rabbit@ost-controller'.....
+ Error: unable to connect to node 'rabbit@ost-controller':node down"
+
+The fix for this problem is to start your message broker. For RabbitMQ, you can use the following command to start the message broker:
+
+# service rabbitmq-server start
+
+
+You can confirm that RabbitMQ has started successfully by running the rabbitmqctl status command again. If RabbitMQ starts successfully, you will see an output similar to the following one:
+
+# rabbitmqctl status
+
+In the nova-scheduler.log file, you should also see a confirmation that the scheduler was able to successfully connect to the message broker. Look for the log lines like the ones shown in this code snippet:
+
+
+2015-09-27 23:52:28.248 2355 INFO oslo.messaging._drivers.impl_rabbit [req-0c95b20c-a70d-40c8-bb90-deeec2f0cd47 - - - - -] Reconnected to AMQP server on myrabbitserver:5672
+2015-09-27 23:52:28.249 2355 INFO oslo.messaging._drivers.impl_rabbit [req-0c95b20c-a70d-40c8-bb90-deeec2f0cd47 - - - - -] Connected to AMQP server on myrabbitserver:5672
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+3.nova-compute:
+=================
+The Nova compute service needs to be running on each of the compute nodes. You can check whether the service is running by executing the following command:
+
+# ps -aux | grep nova-compute
+
+If you find that the nova-compute service is not running, you can start the service by executing the following command on Ubuntu:
+
+# start nova-compute
+
+After you attempt to start the nova-compute server, make sure that it is running successfully using the ps -aux command again. If the service does not start and remain running, you should try to start the service manually to check whether there are any errors printed out to the console. Use the following command to start the nova-compute service manually:
+
+# sudo -u nova nova-compute --config-file=/etc/nova/nova.conf --config-file=/etc/nova/nova-compute.conf 
+
+After executing this command, there will be several log lines containing the startup information for the service. You want to be on the look out for any errors or traces printed in this output. If something pops up, use the details of the error to troubleshoot further.
+
+The compute service is responsible for interacting with the underlying hypervisor and plays a critical role when manipulating instances in OpenStack. If there are problems with the Nova compute service, this can result in multiple issues or errors. For example, if you attempt to launch a new instance without running the nova-compute service, you may see that the instance eventually ends up with an ERROR status. For example, when you run nova list, you may see an output like this:
+
+# nova list
+
+ Result: Servers are in ERROR STATE.
+
+You will also notice that the status of the instance is ERROR. As demonstrated earlier, the first step is to make sure that the nova-compute service is running. If it is and you are still experiencing problems, there are several reasons why you may find your instance in this state. To find more clues about the root cause, we should begin looking through the Nova logs. When troubleshooting an instance with an ERROR state, you will want to look for errors in any of the following log files:
+
+•	/var/log/nova/nova-compute.log
+•	/var/log/nova/nova-scheduler.log
+•	/var/log/nova/nova-conductor.log
+
+
+If the nova-compute service is indeed the root cause of the issue, you are likely to find an error in the nova-conductor.log command, similar to the error shown here:
+
+" NoValidHost: No valid host was found.There are not enough hosts Available"
+
+Remember that the nova-compute service is what abstracts the hypervisor in OpenStack. You can run the nova hypervisor-list command to see which hypervisors are available, and this can also give you clues about your compute hosts. For example, if we run nova hypervisor-list when the nova-compute service is down, we may see an output similar to this:
+
+# nova  hypervisor-list
+
+
+As you can see in this output, the state of the hypervisor is down. This would indicate that we need to look at the nova-compute service to ensure that it is functioning properly.
+When the nova-compute service is running, but instances are still ending up with an error state, you can continue troubleshooting by looking at a few more potential causes.
+
+2016-02-18 13:34.164 3945 ERROR nova.compute.manager [instance: 88887777666655554444] libvirtError: internal error: no supported architecture for os type 'hvm'
+
+An error like the preceding one in the nova-compute.log file is an indication that you may have a configuration problem on your compute host. Specifically, this error points to the setting of virt_type in /etc/nova/nova-compute.conf. The fix here would be to change virt_type to a value accepted by your hypervisor. Specifically, we would change this value to qemu. Remember to restart the nova-compute service whenever you make a change to the nova-compute.conf configuration file.
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+4.nova-conductor:
+================
+One of the purposes of the Nova conductor service is to handle all the database interactions on behalf of the compute nodes. This allows us to have a more secure installation, as the compute hosts don't have direct access to the database. To check whether nova-conductor is running, you can use the following command:
+
+# ps -aux | grep nova-conductor
+
+If nova-conductor is running, the preceding command will return the following output
+
+"SUCCESS"
+
+If the service is not running, you can start it by running a command similar to the following command:
+
+# start nova-conductor
+
+Once you attempt to start the service, be sure to confirm that it is running successfully using the ps -aux command, like we did earlier. If you find that this service has not started in the right way, you should attempt to start the service manually and check the console for errors:
+
+# sudo -u nova nova-conductor --config-file=/etc/nova/nova.conf
+
+When running the service manually, keep an eye on the console for traces or errors. These errors can help you identify issues that are prohibiting the Nova conductor from starting.
+Since nova-compute has a dependency on nova-conductor, the order in which these services start is important. If you try to start nova-compute before nova-conductor, you will most likely see the following warning in your nova-compute.log file:
+
+"2016-02-18 13:38:16 11210 WRANING nova.conductor.api [req-222233334444555666----] Time out waiting for nova-conductor. Is it running? Or did this service start before nova-conductor? Reattemting extablishment of nova-conductor connection"
+
+The fix for the preceding issue is to simply start nova-conductor and then start nova-compute. If your nova-conductor service is not running, you will have issues when trying to launch a new instance, as you can see in the following screenshot:
+
+# OpenStack server list
+
+Result: "Servers is on Build State"
+
+
+In the preceding example, the instance is stuck in the BUILD status with scheduling as the task state. A quick look at the nova-compute.log file will reveal the root of the issue, as shown in the following screenshot:
+
+In the preceding example, the instance is stuck in the BUILD status with scheduling as the task state. A quick look at the nova-compute.log file will reveal the root of the issue, as shown in the following screenshot:
+
+"2016-02-18 13:38:16 11210 WRANING nova.conductor.api [req-222233334444555666----] Time out waiting for nova-conductor. Is it running? Or did this service start before nova-conductor? Reattemting extablishment of nova-conductor connection"
+
+As the error message indicates that nova-conductor is not running. The fix here is to start the nova-conductor service. Nova can typically recover from this sort of error, allowing your instance to eventually build successfully:
+
+# OpenStack server list
+
+Note that the status of the preceding instance is ACTIVE and the power state is Running. This indicates that the instance has been successfully created. While there are various issues that may cause an instance to build unsuccessfully, you can typically determine the root cause by following these points:
+•	Making sure that all the Nova services are running
+•	Checking the various Nova log files for clues
+
+==========================================================================================================================================================================================================
+2.Supporting services:
+=======================
+As you know, Nova works in concert with other OpenStack services, including Keystone, Glance, Neutron, and others. As a result, it is possible that problems with these services may manifest themselves as problems with Nova.
+
+1.The Nova database::
+=======================
+Nova makes use of a database to support its functionalities. If this database is not running or is improperly configured, it can cause your Nova installation to be unusable. To troubleshoot the Nova database, begin by making sure that the database engine is running. For example, when using MySQL, you can check the status by running the following command:
+  
+# service mysql status
+
+
+If the database is running, it will be indicated in the output of this command:
+
+# mysql start/running, process 15628
+
+
+After confirming that the database engine is running, you should try to connect to the database server using the same parameters that are set up in the Nova configuration file. You can look up the connection information by running the following command:
+
+# less /etc/nova/nova.conf | grep "connection ="
+
+
+The preceding command will search through the Nova configuration file, which is located at /etc/nova/nova.conf. In this file, we are looking for a variable named connection. This setting is typically under the stanza named [database]. The value of the variable will follow a format similar to the following format if you are using MySQL:
+
+# mysql://nova:novapwd@mydbserver/nova
+
+
+From the preceding connection string, we see that our database server is running on the host named mydbserver with a database user named nova, and a password novapwd. We can use this information to attempt to connect to the database directly:
+
+# mysql -u nova -p -h mydbserver nova
+
+On successful connection, a message similar to the one shown here will be printed on your console:
+
+"Result: should be successful"
+
+If the connection is unsuccessful, you will see a message like this one:
+
+" ERROR 1045 (28000): Access denied for user 'nova@localhost' (using password: YES)"
+
+This error indicates that we need to troubleshoot further. There are several possible causes behind this error. A few potential reasons include the following:
+•	Incorrect value for the database host
+•	Incorrect permission for users attempting to access the database
+•	Incorrect username and/or password
+
+To troubleshoot further, you will need root access to the database server. Attempt to connect to the database using your root user. Accomplishing this step will also allow you to confirm the value for the database host:
+
+# mysql -u root -p -h mydbserver
+
+Once you have logged into the database server as a root user, you will want to check the permissions for the Nova database user. An example of how to do this is included here:
+
+# show grants for 'nova'@'locahost'
+
+The output of the preceding command will be similar to what is printed in the following screenshot:
+
+Result: it should show the grants for nova.
+
+The nova user needs to be granted all permissions on the Nova database. After confirming that the nova user has the correct permissions, you want to make sure that the user's password is correct. You can change the nova user's password by executing the following set of commands:
+
+>mysql -u root -p
+>use mysql;
+>update user set password=PASSWORD('enter_new_password_here') where user='root';
+>flush privileges;
+>quit
+
+After executing this series of commands, the password for the nova user will be updated. Make sure that this new value is properly reflected in the connection variable under the [database] stanza in the /etc/nova/nova.conf file.
+After you have confirmed that your nova database user is set up correctly, you will want to make sure that the Nova database is properly initialized. The first step is to make sure that the Nova database exists. In MySQL, you can check this by running the following command:
+
+# show databases;
+
+Make sure you see a database named nova in the list:
+
+> Should show DB
+
+
+If the Nova database does not exist, you need to create it. You can do this using the standard SQL syntax. Take the following line of code as an example:
+
+mysql> CREATE DATABASE nova;
+
+Once you have confirmed that the database exists, you need to make sure that the required tables are present in the database:
+
+mysql> show tables;
+
+After running the preceding command, you will see list of tables in the Nova database. The following output is a partial list of tables. There are around 100 tables in total.
+
+When you run show tables and the command comes back empty, you will need to initialize your Nova database:
+
+# nova-manage db sync
+
+The preceding command does not return an output, but it will create the necessary tables in the Nova database. Confirm this by running the show tables command again, after which you should see that your database is populated.
+
+
+2.Nova authentication:
+-----------------------
+
+The most obvious dependency Nova has is Keystone. Nova leverages Keystone to provide authentication services for all the Nova API calls. So, if Keystone is not running as expected, you will come to know this as soon as you attempt to use the OpenStack client:
+
+# openstack server list
+
+If you try to use the preceding command to list the Nova servers while Keystone is not working, you will see an error like the one shown here:
+
+"Discovering versions from the identity service failed when creating the password plugin. Attempting to determine version from URL. Unable to establish connection to http://127.0.0.1:35357/v2.0/tokens.
+
+
+Keystone up:
+------------
+We will begin troubleshooting the integration between Nova and Keystone by making sure that Keystone is up and running:
+
+# ps -aux | grep keystone
+
+This command should return an output similar to what is shown in the following screenshot
+
+Should list all services.
+
+If you do not see any Keystone processes running, refer to Chapter 2, Troubleshooting OpenStack Identity, in this book for Keystone troubleshooting tips.
+
+
+
+Setting up the service user:
+-------------------------------
+Next, we will make sure that the Nova service user is set up correctly. By convention, this service user will be named nova. Confirm that this user exists by running the following command:
+
+# openstack user list
+
+Running this command will return a list of users in Keystone. An example of the output is included in this screenshot:
+
+Make sure nova should available
+
+Make sure that there is a user named nova. Secondly, this user should belong to a project/tenant named service, by convention. Make sure that the service project exists by running the following command:
+
+# openstack project list
+
+This command will list the projects (tenants) configured in our Keystone installation:
+
+Check service project assigned with nova
+
+
+In the output of this command, you should see a project named service, as demonstrated in the preceding screenshot. Next, we need to confirm that the nova user is assigned to the service project. We can accomplish this using the next command:
+
+# openstack user show nova
+
+The preceding user show command will display details for the nova user as shown here:
+
+
+In the project_id field, we are looking for a project ID that matches the ID of our service project displayed in the preceding OpenStack project-list command. The project ID we are looking for is 831669f19f3b4505a3b8b132e88a3b36. The output tells us that our nova user is indeed a part of the service project.
+
+Next, confirm that the nova user has the correct roles in Keystone. The following command can help us with that:
+
+# openstack user role list --project service nova
+
+This command will list the roles for the glance user in the context of the service project
+
+Check roles of nova user
+
+Confirm that the nova user has the admin role in the service project.
+
+Finally, confirm the password for the nova user. Use the OpenStack command-line client to authenticate as the nova user. Run a command similar to the one shown here:
+
+# openstack --os-username nova --os-password nova --os-project-name service project list
+
+The preceding command is the Openstack project list command, with a few arguments passed in on the command line. The arguments passed in will override the values we have in our openrc file. This allows us to test authentication with different users:
+
+
+•	--os-username: This indicates the username of the user we want to use. For this test, the username is nova.
+•	--os-password: This is the value we are targeting with this test. We want to make sure that the password is set and working as expected. For my test, I'm expecting the password to be nova.
+•	--os-project-name: Finally, we need to pass in the project name so that Keystone knows which project to authenticate under. Our user may have different roles under different projects. In our example, we are testing the nova user under the service project.
+
+If the password for the nova user is equal to nova, as I expect, this command will return a list of projects in keystone, as follows:
+
+U will get successful result
+
+"Suppose that I get an error like the one shown here:
+The request you have made requires authentication. (HTTP 401) (Request-ID: req-707fd197-ae15-4698-ac04-1de4c92acfe9"
+
+
+This error tells me that the password is not nova, as I anticipated. At this point, I can try a few more password possibilities or I can reset the password. To reset the nova user's password, you can use a command like the one shown here:
+
+# openstack user set --password-prompt nova
+
+
+After running this command, you will be prompted to enter a new password for the nova user. You will then be asked to type that password a second time to confirm it. After you reset the password, you can test it as we did earlier.
+
+Finally, we need to confirm that our credentials are set properly in the Nova configuration files. In the /etc/nova/nova.conf file, there should be a keystone_authtoken stanza. Under this stanza, make sure that the values of the admin_user and admin_password fields match with the values you have set in Keystone. Consider the following example:
+
+-----
+[keystone_authtoken]
+auth_uri = http://mykeystoneserver:5000
+identity_uri = http://mykeystoneserver:35357
+admin_tenant_name = service
+admin_user = nova
+admin_password = nova
+-----
+
+
+In the preceding example, admin_ user is set to nova and admin_password is set to nova. Replace these values with the username and password you have configured for your installation
+
+Service endpoints correct:
+---------------------------
+At this stage, we should confirm that the service catalog contains the correct endpoints for the Nova service with the following command:
+
+# openstack endpoint show nova
+
+When you run the endpoint show command, as demonstrated in the preceding code, you will see the details for the Nova endpoint in the service catalog. An example of a typical output is included in the following screenshot:
+
+Should list success
+
+Confirm that the values of the adminurl, internalurl, and publicurl fields are correct. If any of these values are incorrect, you have the following three options to correct the issue:
+•	You can use the OpenStack endpoint delete command to remove the current endpoints, followed by the OpenStack endpoint create command.
+•	If you are using the default SQL driver for your service catalog, you can make the edits to the endpoints directly in the SQL database. Use caution when executing this option.
+•	If you are using the templated driver for your service catalog, you simply need to update your endpoint template file.
+
+==========================================================================================================================================================================================================
+3.Nova and Glance:
+===================
+Nova depends on Glance when retrieving images while launching instances. If there is an issue that you're facing with Glance, you will most likely see it quickly when you attempt to launch a new instance using the openstack server create command:
+
+# openstack server create --flavor m1.tiny --image cirros-qcow2 server1
+
+When this command is executed successfully, it will return a summary of the instance being created. If there is a problem with the Glance and Nova configurations, then you will see an error like the one shown here:
+
+Could not find resource cirros-qcow2
+
+If you run the same command with the --debug flag, you will see a more detailed error message like the one shown in the following screenshot:
+
+Could not find resource cirros-qcow2
+
+
+This error clearly points to the fact that glance-api is not running or Glance is not configured correctly in the nova.conf file. The Glance configuration for Nova can be found under the [glance] stanza in /etc/nova/nova.conf as shown here:
+
+[glance]
+Host = ip.of.glance.server
+
+As demonstrated in the preceding code, you need to confirm the value of the host parameter for Glance. Once you confirm the Glance configuration in nova.conf, refer to Chapter 3, Troubleshooting the OpenStack Image Service, for more tips on Glance troubleshooting.
+==========================================================================================================================================================================================================
+4.Nova and Neutron:
+======================
+Nova also depends on Neutron to provide networking for the instances. Nova will make API calls to Neutron after authenticating via Keystone. When attempting to launch an instance, you may come across and error like the one shown in the following screenshot:
+
+"Unexpected API Error. Please report this at http://bugs.launchpad.net/nova/ and attach the Nova API log possible. <class 'keystoneauth1.exceptions.connection.ConnectFailure'> (HTTP 500) (request-ID: req-222777666535353)"
+
+
+Upon further troubleshooting, you may see errors in nova-api.log similar to the ones shown here:
+
+" 2016-02-18 17:52:19 19155 ERROR nova-api.openstack.extentions ConnectFailure: Unable to establish connection to http://127.0.0.1:9696/v2.0/floatingips.json?tenant_id=99985745643653545"
+
+If you run across a similar error, make sure that the Neutron server is running and configured correctly in the nova.conf file.
+
+[neutron]
+auth_plugin= password
+username=neutron
+password=your_neutron_password
+
+
+The preceding screenshot shows an example of the Neutron configuration in the nova.conf file. Make sure that this stanza exists, and the username and password values are correct for the Neutron service user. Once you have confirmed this, you can review the Chapter 4, Troubleshooting OpenStack Networking, for more tips.
+
+==========================================================================================================================================================================================================
