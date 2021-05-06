@@ -1,47 +1,163 @@
 Useful LXD commands:
 =====================
-Summarized from https://stgraber.org/2016/03/19/lxd-2-0-your-first-lxd-container-312/.
+1.Installation of LXC:
+=======================
+RedHat/CentOS:
+---------------
+# yum install epel-release
+# yum update
+# yum install lxc lxc-templates lxc-doc lxc-libs rsync debootstrap
+# yum install lxc-extra
+# yum install bridge-utils
 
-Interestingly, the LXD command line client is named.... lxc!
+Ubuntu:
+--------
+# apt-get install lxc
 
-List available containers:
+2.Checking Installation:
+========================
+# lxc-checkconfig
+
+3.Create Bridge Network:
+=========================
+# cat /etc/sysconfig/network-scripts/ifcfg-lxcbr0
+NAME=lxcbr0
+DEVICE=lxcbr0
+TYPE=Bridge
+BOOTPROTO=static
+ONBOOT=yes
+IPADDR=192.168.1.1
+PREFIX=24
+DEFROUTE=no
+NM_CONTROLLED=no
+
+4.Create container:
+====================
+Method1 : Download Images:
+--------------------------
+# lxc-create -n cent-lxc1 -t download -- -d centos -r 7 -a amd64
+# lxc-create -t download -n container1 -- -d ubuntu -r trusty -a amd64
+
+Method2 : create image from repo:
+----------------------------------
+# ls /usr/share/lxc/templates/
+lxc-alpine    lxc-archlinux  lxc-centos  lxc-debian    lxc-fedora  lxc-openmandriva  lxc-oracle  lxc-sshd    lxc-ubuntu-cloud
+lxc-altlinux  lxc-busybox    lxc-cirros  lxc-download  lxc-gentoo  lxc-opensuse      lxc-plamo   lxc-ubuntu
+
+# lxc-create -n centos7 -t centos -- --release 7
+# lxc-create -t ubuntu -n test01
+# lxc-create -n web01 -t download -- -d centos -r 7 -a amd64
+
+# ls /var/lib/lxc/test01/
+
+5.Container's standard storage location:
+========================================
+PATH	                       Note
+
+/var/lib/lxc	             Container's standard storage location
+/var/lib/lxcsnap	         Standard snapshot storage location
+/var/cache/lxc	             Standard template cache location
+$HOME/.local/share/lxc     	Standard storage location for non-privileged containers
+$HOME/.local/share/lxcsnap	Typical storage location for non-privileged snapshots
+$HOME/.cache/lxc	        Standard storage location of non-privileged template cache
+
+6.Configuraion:
+===============
+Network Namespace:
+------------------
+/var/lib/lxc/CONTAINER/config
+
+How to use veth:
+----------------
+lxc.network.type = veth
+lxc.network.flags = up
+lxc.network.link = virbr0                  <- host NIC
+
+How to use macvlan:
+-------------------
+lxc.network.type = macvlan
+lxc.network.macvlan.mode = bridge
+lxc.network.flags = up
+lxc.network.link = eth0                  <- host NIC
+lxc.network.type = macvlan
+lxc.network.macvlan.mode = bridge
+lxc.network.flags = up
+lxc.network.link = ens192                  <- host NIC
+lxc.network.hwaddr = fe:e1:e7:96:43:bc     <- container's MAC
+lxc.rootfs = /var/lib/lxc/centos7/rootfs
+
+7.List available Images:
 ============================
 lxc image list ubuntu:        # ubuntu: is officially supported image source
 lxc image list images:        # images: is an unsupported source
 lxc image alias list images:  # lists user-friendly names
 
-Launch a container:
-====================
+8.Launch a container:
+=======================
 This creates and starts a container.
 
 lxc launch ubuntu:14.04 CONTAINERNAME   # image and container names are optional 
 lxc launch ubuntu:14.04/armhf armcont   # specific architecture
 lxc launch images:alpine/3.3/amd64      # unsupported images: source
 
-Create container:
-=================
+9.Create container:
+====================
 Without starting it.
-
+lxc-create -n CONTAINER -t XXXX -- --relese X
 lxc init images:alpine/3.3/amd64 alpinecont
 lxc copy CONTAINER1 CONTAINER2        # clone
 lxc delete alpinecont [--force]       # --force if it is running
 
-Start/stop after creating it:
-=============================
+10.Start/stop after creating it:
+=================================
+ Note: all commands take -n  as parameter to specify the container
+ 
+lxc-start                             # Start and attach
+lxc-start -d                          # Start in background
+lxc-stop
 lxc start alpinecont
 lxc stop alpinecont [--force]         # --force if it doesn't want to stop
+lxc-stop -k -n CONTAINER ← stop force
 lxc restart alpinecont [--force]
 lxc pause alpinecont                  # SIGSTOP to all container processes
 
-List local containers:
+11.Attach the containers:
+=========================
+lxc-console -n CONTAINER.     <Ctrl+a q> to exit
+lxc-attach -n CONTAINER
+lxc-console  <container name>    # Attach to running container
+
+12.Run Commands in a Container:
+================================
+lxc-execute -n <name> -- <command>  # Run command in new container
+lxc-attach  -n <name> -- <command>  # Run command in running container
+
+
+13.Monitor Containers:
 ======================
+xc-info -n CONTAINER  # get Container Info
+lxc-monitor    # Monitor containers for state changes
+lxc-wait       # Wait for a state change
+lxc-info       # Give details on a container
+
+lxc-freeze
+lxc-unfreeze
+
+lxc-netstat
+lxc-ps
+
+14.List local containers:
+=========================
+lxc-ls                                # List existing containers
 lxc list 
 lxc list --columns "nsapt"            # name, status, arch, PID of init, type
 lxc list security.privileged=true     # filter for properties
 lxc info CONTAINERNAME                # detailed info about one container
+lxc-ls -f <- -f = --fancy
 
-Available columns for the list command:
-=======================================
+
+15.Available columns for the list command:
+==========================================
 4 - IPv4 address
     6 - IPv6 address
     a - Architecture
@@ -53,12 +169,12 @@ Available columns for the list command:
     S - Number of snapshots
     t - Type (persistent or ephemeral)
 
-Rename:
-========
+16.Rename:
+============
 lxc move CONTAINERNAME NEWNAME
 
-Configuration:
-===============
+17.Configuration:
+==================
 Config changes are effective immediately, even if container is running.
 
 export VISUAL=/usr/bin/vim
@@ -68,21 +184,21 @@ lxc config device add CONTAINERNAME DEVICE TYPE KEY=VALUE
 lxc config show [--expanded] CONTAINERNAME
 Configuration settings can be saved as **profiles**.
 
-Enter the container:
-======================
+18.Enter the container:
+========================
 lxc exec CONTAINERNAME -- PROGRAM OPTIONS
 lxc exec CONTAINERNAME sh
 lxc exec CONATINERNAME --env KEY=VALUE PROGRAM   # environment variable
 This command runs the program in all the namespaces and cgroups of the container. The program must exist inside the container.
 
-Access container files:
-========================
+19.Access container files:
+============================
 lxc file pull CONTAINERNAME/etc/passwd /tmp/mypasswd
 lxc file push /tmp/mypasswd CONTAINERNAME/etc/passwd 
 lxc file edit CONTAINERNAME/etc/passwd 
 
-Snapshots:
-============
+20.Snapshots:
+===============
 lxc snapshot CONTAINERNAME SNAPNAME    # SNAPNAME is optional; default name snap*X*
 lxc restore CONTAINERNAME SNAPNAME     # resets the container to snapshot
 lxc copy CONTAINERNAME/SNAPNAME NEWCONTAINER               # new container from snapshot
@@ -90,5 +206,7 @@ lxc delete CONTAINERNAME/SNAPNAME
 lxc info CONTAINERNAME                 # lists snapshots among other info
 lxc move CONTAINERNAME/SNAPNAME CONTAINERNAME/NEWSNAPNAME  # rename snapshot
 
-
-
+21.Destroy:
+========
+lxc-destroy -n container1
+lxc-destroy -n container1 -f
