@@ -101,6 +101,9 @@ lxc.rootfs = /var/lib/lxc/centos7/rootfs
 lxc image list ubuntu:        # ubuntu: is officially supported image source
 lxc image list images:        # images: is an unsupported source
 lxc image alias list images:  # lists user-friendly names
+lxc image list images: | more
+lxc image list images: | grep -i 'debian'
+lxc image list images: | grep -i 'opensuse'
 
 8.Launch a container:
 =======================
