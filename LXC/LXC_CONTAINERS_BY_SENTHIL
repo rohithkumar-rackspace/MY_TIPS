@@ -1,0 +1,718 @@
+============================================================================================================================================================================================================
+Chapter 1. Introduction to Linux Containers:
+============================================================================================================================================================================================================
+Nowadays, deploying applications inside some sort of a Linux container is a widely adopted practice, primarily due to the evolution of the tooling and the ease of use it presents. Even though Linux containers, or operating-system-level virtualization, One of the reasons for this is the fact that hypervisor-based technologies such as KVM and Xen were able to solve most of the limitations of the Linux . However, with the advent of kernel namespaces and control groups (cgroups) the notion of a light-weight virtualization became possible through the use of containers.
+
+1.1.The OS kernel and its early limitations:
+----------------------------------------
+In the past, only a single process could be scheduled for work, wasting precious CPU cycles if blocked on an I/O operation.
+The solution to these problems is the use of hypervisor based virtualization, containers, or the combination of both.
+
+1.2.The case for Linux containers:
+------------------------------
+The hypervisor as part of the operating system is responsible for managing the life cycle of virtual machines, and has been around since the early days of mainframe machines in the late 1960s.
+Most modern virtualization implementations, such as Xen and KVM,
+The main reason for the wide adoption of these virtualization technologies around 2005 was the need to better control and utilize the ever-growing clusters of compute resources.
+virtualization such as KVM and Xen is still widely used today, especially in multitenant clouds and cloud technologies such as OpenStack.
+
+various improvements to the Linux kernel were made to allow for similar functionality, but with less overhead – most notably the kernel namespaces and cgroups. 
+One of the first notable technologies to leverage those changes was LXC, since kernel 2.6.24 and around the 2008 time frame.
+
+1.3.The main benefits of using LXC include:
+----------------------------------------
+Lesser overheads and complexity than running a hypervisor
+Smaller footprint per container
+Start times in the millisecond range
+Native kernel support
+
+1.4.Linux namespaces – the foundation of LXC:
+----------------------------------------------
+Namespaces are the foundation of lightweight process virtualization. They enable a process and its children to have different views of the underlying system. This is achieved by the addition of the unshare() and setns() system calls, and the inclusion of six new constant flags passed to the clone(), unshare(), and setns() system calls:
+
+clone(): This creates a new process and attaches it to a new specified namespace
+unshare(): This attaches the current process to a new specified namespace
+setns(): This attaches a process to an already existing namespace
+
+There are six namespaces currently in use by LXC, with more being developed:
+-----------------------------------------------------------------------------
+Mount namespaces, specified by the CLONE_NEWNS flag
+UTS namespaces, specified by the CLONE_NEWUTS flag
+IPC namespaces, specified by the CLONE_NEWIPC flag
+PID namespaces, specified by the CLONE_NEWPID flag
+User namespaces, specified by the CLONE_NEWUSER flag
+Network namespaces, specified by the CLONE_NEWNET flag
+
+
+1.5.Resource management with cgroups:
+--------------------------------------
+Cgroups are kernel features that allows fine-grained control over resource allocation for a single process, or a group of processes, called tasks. In the context of LXC this is quite important, because it makes it possible to assign limits to how much memory, CPU time, or I/O, any given container can use.
+
+The cgroups we are most interested in are described in the following table:
+
+Subsystem          Description                            Defined in
+
+cpu                Allocates CPU time for tasks           kernel/sched/core.c
+
+cpuacct            Accounts for CPU usage                 kernel/sched/core.c
+
+cpuset             Assigns CPU cores to tasks             kernel/cpuset.c
+
+memory             Allocates memory for tasks             mm/memcontrol.c
+
+blkio              Limits the I/O access to devices       block/blk-cgroup.c
+
+devices            Allows/denies access to devices         security/device_cgroup.c
+
+freezer            Suspends/resumes tasks                  kernel/cgroup_freezer.c
+
+net_cls            Tags network packets                    net/sched/cls_cgroup.c
+
+net_prio           Prioritizes network traffic             net/core/netprio_cgroup.c
+
+hugetlb            Limits the HugeTLB                       mm/hugetlb_cgroup.c
+
+Cgroups are organized in hierarchies, represented as directories in a Virtual File System (VFS). Similar to process hierarchies, where every process is a descendent of the init or systemd process, cgroups inherit some of the properties of their parents. Multiple cgroups hierarchies can exist on the system, each one representing a single or group of resources. It is possible to have hierarchies that combine two or more subsystems, for example, memory and I/O, and tasks assigned to a group will have limits applied on those resources.
+
+============================================================================================================================================================================================================Chapter 2. Installing and Running LXC on Linux Systems:
+============================================================================================================================================================================================================
+LXC takes advantage of the kernel namespaces and cgroups to create process isolation we call containers.
+As such, LXC is not a separate software component in the Linux kernel, but rather a set of userspace tools, the liblxc library, and various language bindings.
+
+Installing LXC:
+---------------
+Installing LXC on Ubuntu with apt:
+----------------------------------
+Let's start by installing LXC 1.0 on Ubuntu 14.04.5 (Trusty Tahr):
+
+1. Install the main LXC package, tooling, and dependencies:
+
+root@ubuntu:~# lsb_release -dc Description: Ubuntu 14.04.5 LTS Codename: trusty
+
+root@ubuntu:~# apt-get -y install -y lxc bridge-utils debootstrap libcap-dev cgroup-bin libpam-systemdbridge-utils
+
+2. The package version that Trusty Tahr provides at this time is 1.0.8:
+
+root@ubuntu:~# dpkg --list | grep lxc | awk '{print $2,$3}' liblxc1 1.0.8-0ubuntu0.3
+
+lxc 1.0.8-0ubuntu0.3
+lxc-templates 1.0.8-0ubuntu0.3
+python3-lxc 1.0.8-0ubuntu0.3 root@ubuntu:~#
+
+To install LXC 2.0, we'll need the Backports repository:
+
+1. Add the following two lines in the apt sources file:
+
+root@ubuntu:~# vim /etc/apt/sources.list
+
+deb http://archive.ubuntu.com/ubuntu trusty-backports main restricted universe multiverse
+deb-src http://archive.ubuntu.com/ubuntu trusty-backports main restricted universe multiverse
+
+2. Resynchronize the package index files from their sources:
+
+root@ubuntu:~# apt-get update
+
+3. Install the main LXC package, tooling, and dependencies:
+
+root@ubuntu:~# apt-get -y install -y lxc=2.0.3-0ubuntu1~ubuntu14.04.1 lxc1=2.0.3-0ubuntu1~ubuntu14.04.1 liblxc1=2.0.3-0ubuntu1~ubuntu14.04.1 python3- lxc=2.0.3-0ubuntu1~ubuntu14.04.1 cgroup- lite=1.11~ubuntu14.04.2 lxc-templates=2.0.3-0ubuntu1~ubuntu14.04.1bridge-utils
+
+4. Ensure the package versions are on the 2.x branch, in this case 2.0.3:
+
+root@ubuntu:~# dpkg --list | grep lxc | awk '{print $2,$3}' liblxc1 2.0.3-0ubuntu1~ubuntu14.04.1 lxc2.0.3-0ubuntu1~ubuntu14.04.1
+
+oot@ubuntu:~# dpkg --list | grep lxc | awk '{print $2,$3}' liblxc1 2.0.3-0ubuntu1~ubuntu14.04.1 lxc2.0.3-0ubuntu1~ubuntu14.04.1
+lxc-common lxc-templates lxc1
+lxcfs python3-lxc 
+
+Installing LXC on Ubuntu from source:
+-------------------------------------
+To use the latest version of LXC, you can download the source code from the upstream GitHub repository and compile it:
+
+1. First, let's install git and clone the repository:
+
+root@ubuntu:~# apt-get install git
+root@ubuntu:~# cd /usr/src
+root@ubuntu:/usr/src# git clone https://github.com/lxc/lxc.git Cloning into 'lxc'...
+remote: Counting objects: 29252, done.
+remote: Compressing objects: 100% (156/156), done.
+remote: Total 29252 (delta 101), reused 0 (delta 0), pack-reused 29096
+Receiving objects: 100% (29252/29252), 11.96 MiB | 12.62 MiB/s, done.
+Resolving deltas: 100% (21389/21389), done. 
+root@ubuntu:/usr/src#
+
+2. Next, let's install the build tools and various dependencies:
+
+root@ubuntu:/usr/src# apt-get install -y dev-utils build-essential aclocal automake pkg-config git bridge-utils libcap-dev libcgmanager-dev cgmanager
+
+3. Now, generate the configure shell script, which will attempt to guess correct values for different system-dependent variables used during compilation:
+root@ubuntu:/usr/src# cd lxc root@ubuntu:/usr/src/lxc#./autogen.sh
+
+4.The configure script provides options that can be enabled or disabled based on what features you would like to be compiled. To learn what options are available and for a short description of each, run    the following:
+root@ubuntu:/usr/src/lxc# ./configure -help
+
+5. Its time now to run configure. In this example, I'll enable Linux capabilities and cgmanager, which will manage the cgroups for each container:
+root@ubuntu:/usr/src/lxc# ./configure --enable-capabilities --enable-cgmanager
+
+6. Next, compile with make: root@ubuntu:/usr/src/lxc# make
+
+7. Finally, install the binaries, libraries, and templates:
+root@ubuntu:/usr/src/lxc# make install
+As of this writing, the LXC binaries look for their libraries in a different path than where they were installed. To fix this just copy them to the correct location:
+root@ubuntu:/usr/src/lxc# cp /usr/local/lib/liblxc.so* /usr/lib/x86_64-linux-gnu/
+
+8. To check the version that was compiled and installed, execute the following code:
+root@ubuntu:/usr/src/lxc# lxc-create --version 2.0.0
+root@ubuntu:/usr/src/lxc#
+
+Installing LXC on CentOS with yum:
+----------------------------------
+
+CentOS 7 currently provides LXC version 1.0.8 in their upstream repositories. The following instructions should work on RHEL 7 and CentOS 7:
+
+1. Install the main package and distribution templates:
+root@centos:~# cat /etc/redhat-release
+CentOS Linux release 7.2.1511 (Core) root@centos:~# yum install -y lxc lxc-templates root@centos:~#
+
+2. Check the installed package versions:
+root@centos:~# rpm -qa | grep lxc lua-lxc-1.0.8-1.el7.x86_64 lxc-templates-1.0.8-1.el7.x86_64 lxc-libs-1.0.8-1.el7.x86_64 lxc-1.0.8-1.el7.x86_64 root@centos:~#
+
+LXC Base Directory:                                           /usr/share/lxc
+Collection of Distributed Configuration files:                /usr/share/lxc/config
+Collection of container template scripts:                      /usr/share/lxc/templates
+Location of Most lxc binaries:                                  /usr/bin/
+Location of livlxc:                                            /usr/lib/x86_64-linux-gnu
+Location of default LXC Config files:                         /etc/lxc
+Location of root file system and config of containers:        /var/lib/lxc/
+LXC log files:                                                /var/log/lxc
+
+TIP: You can change the default installation path when building LXC from source by passing arguments to the configuration script such as configure --prefix.
+
+
+Building and manipulating LXC containers:
+-----------------------------------------
+Managing the container life cycle with the provided userspace tools is quite convenient compared to manually creating namespaces and applying resource limits with cgroups
+In essence, this is exactly what the LXC tools do:
+LXC comes packaged with various templates for building root filesystems for different Linux distributions. We can use them to create a variety of container flavors. 
+For example, running a Debian container on a CentOS host.
+
+Building our first container:
+------------------------------
+We can create our first container using a template. The lxc-download file, like the rest of the templates in the templates directory, is a script written in bash:
+
+root@ubuntu:~# ls -la /usr/share/lxc/templates/ drwxr-xr-x 2 root root 4096 Aug 29 20:03 .
+drwxr-xr-x 6 root root 4096 Aug 29 19:58 ..
+-rwxr-xr-x 1 root root 10557 Nov 18 2015 lxc-alpine 
+-rwxr-xr-x 1 root root 13534 Nov 18 2015 lxc-altlinux 
+-rwxr-xr-x 1 root root 10556 Nov 18 2015 lxc-archlinux 
+-rwxr-xr-x 1 root root 9878 Nov 18 2015 lxc-busybox 
+-rwxr-xr-x 1 root root 29149 Nov 18 2015 lxc-centos 
+-rwxr-xr-x 1 root root 10486 Nov 18 2015 lxc-cirros 
+-rwxr-xr-x 1 root root 17354 Nov 18 2015 lxc-debian 
+-rwxr-xr-x 1 root root 17757 Nov 18 2015 lxc-download 
+-rwxr-xr-x 1 root root 49319 Nov 18 2015 lxc-fedora 
+-rwxr-xr-x 1 root root 28253 Nov 18 2015 lxc-gentoo
+ -rwxr-xr-x 1 root root 13962 Nov 18 2015 lxc-openmandriva 
+-rwxr-xr-x 1 root root 14046 Nov 18 2015 lxc-opensuse
+ -rwxr-xr-x 1 root root 35540 Nov 18 2015 lxc-oracle 
+-rwxr-xr-x 1 root root 11868 Nov 18 2015 lxc-plamo 
+-rwxr-xr-x 1 root root 6851 Nov 18 2015 lxc-sshd 
+-rwxr-xr-x 1 root root 23494 Nov 18 2015 lxc-ubuntu 
+-rwxr-xr-x 1 root root 11349 Nov 18 2015 lxc-ubuntu-cloud 
+
+Let's start by building a container using the lxc-download template, which will ask for the distribution, release, and architecture, then use the appropriate template to create the filesystem and configuration for us:
+
+root@ubuntu:~# lxc-create -t download -n <ContainerName> Setting up the GPG keyring
+
+Downloading the image index
+---
+DIST RELEASE ARCH ---
+VARIANT    BUILD
+centos 6
+centos 6
+centos 7
+debian jessie amd64 default 20160830_22:42 debian jessie arm64 default 20160824_22:42 debian jessie armel default 20160830_22:42 ...
+ubuntu trusty amd64 default 20160831_03:49 ubuntu trusty arm64 default 20160831_07:50 ubuntu yakkety s390x default 20160831_03:49 ---
+Distribution: ubuntu Release: trusty Architecture: amd64 Unpacking the rootfs ---
+You just created an Ubuntu container (release=trusty, arch=amd64, variant=default)
+To enable sshd, run: apt-get install openssh-server
+For security reason, container images ship without user accounts and without a root password.
+Use lxc-attach or chroot directly into the rootfs to set a root password or create user accounts.
+root@ubuntu:~#
+
+Let's list all containers:
+--------------------------
+root@ubuntu:~# lxc-ls -f
+
+NAME STATE IPV4 IPV6 AUTOSTART ---- c1 STOPPED - - NO root@nova-perf:~#
+
+Container is in Stopped State
+
+
+To Start Container:
+--------------------
+# lxc-start -n <ContainerName> -d -l DEBUG
+
+command to list all containers::
+--------------------------------
+# lxc-ls -f
+
+information about the container:
+--------------------------------
+# lxc-info -n <ContainerName>
+
+The new container is now connected to the host bridge lxcbr0:
+-------------------------------------------------------------
+# brctl show
+# iptables -L -n -t nat
+
+Check IP address of a container:
+--------------------------------
+# ip a s lxcbr0
+
+Let's see what the process tree looks like after starting the container:
+-------------------------------------------------------------------------
+# ps axfww
+
+let's run attach with the container, list all processes, and network interfaces, and check connectivity:
+---------------------------------------------------------------------------------------------------------
+
+root@ubuntu:~# lxc-attach -n <ContainerName> 
+
+root@c1:~# ps axfw
+
+root@c1:~# ip a s
+
+root@c1:~# ping -c 3 google.com
+
+root@c1:~# exit exit 
+
+root@ubuntu:~#
+
+
+Let's examine the directory that was created after building the c1 container:
+-------------------------------------------------------------------------------
+root@ubuntu:~# ls -la /var/lib/lxc/c1/
+total 16
+drwxrwx--- 3 root root 4096 Aug 31 20:40 . 
+drwx------ 3 root root 4096 Aug 31 21:01 .. 
+-rw-r--r-- 1 root root 516 Aug 31 20:40 config 
+drwxr-xr-x 21 root root 4096 Aug 31 21:00 rootfs
+root@ubuntu:~#
+
+The rootfs directory looks like a regular Linux filesystem. You can manipulate the container directly by making changes to the files there, or using chroot.
+To demonstrate this, let's change the root password of the c1 container not by attaching to it, but by chrooting to its rootfs:
+root@ubuntu:~# cd /var/lib/lxc/c1/ 
+root@ubuntu:/var/lib/lxc/c1# chroot rootfs 
+root@ubuntu:/# ls -al
+root@ubuntu:/# passwd
+   Enter new UNIX password:
+Retype new UNIX password:
+   passwd: password updated successfully
+   root@ubuntu:/# exit
+   exit
+   root@ubuntu:/var/lib/lxc/c1#
+
+To test the root password, let's install Secure Shell (SSH) server in the container by first attaching to it and then using ssh to connect:
+--------------------------------------------------------------------------------------------------------------------------------------------
+root@ubuntu:~# lxc-attach -n c1
+root@c1:~# apt-get update&&apt-get install -y openssh-server root@c1:~# sed -i 's/without-password/yes/g' /etc/ssh/sshd_config 
+root@c1:~#service ssh restart
+root@c1:/# exit
+exit
+root@ubuntu:/var/lib/lxc/c1# ssh 10.0.3.190
+root@10.0.3.190's password:
+Welcome to Ubuntu 14.04.5 LTS (GNU/Linux 3.13.0-91-generic x86_64) * Documentation: https://help.ubuntu.com/
+Last login: Wed Aug 31 22:25:39 2016 from 10.0.3.1
+root@c1:~# exit
+logout
+Connection to 10.0.3.190 closed.
+root@ubuntu:/var/lib/lxc/c1#
+
+
+Making custom containers with debootstrap on Ubuntu:
+------------------------------------------------------
+Using the provided distribution template scripts and config files is the fastest way to provision LXC.
+For this, we can use the debootstrap utility to create the rootfs of the container, and then manually create the config file that will describe the properties of the containers.
+Let's start by installing debootstrap, if not already installed. On Ubuntu, run the following command:
+root@ubuntu:~# apt-get install -y debootstrap
+root@centos:~# yum install -y debootstrap
+
+To create a filesystem for the stable Debian release, we can provide the following arguments:
+
+root@ubuntu:~# debootstrap --arch=amd64 --include="openssh-server vim" stable ~/container http://httpredir.debian.org/debian/
+
+We specified the architecture, what packages to be installed, the release of the OS, and the location where the rootfs will be created, in this example, in ~/container.
+Next, we'll need a config file for the container. There are many available options for specifying various LXC attributes. Let's start with a somewhat simple configuration:
+root@ubuntu:~# vim ~/config
+
+With the configuration set, let's create the container:
+--------------------------------------------------------
+root@ubuntu:~# lxc-create --name manual_container -t none -B dir --dir ~/container -f ~/config
+
+Let's start the container by setting the log to DEBUG and redirect it to a file in case we need to troubleshoot errors:
+-----------------------------------------------------------------------------------------------------------------------
+root@ubuntu:~# lxc-start -n manual_container -l DEBUG -o container.log 
+
+root@ubuntu:~# lxc-ls -f
+NAME STATE AUTOSTART GROUPS IPV4 IPV6 manual_container RUNNING 0 - 10.0.3.151 -
+
+root@ubuntu:~# lxc-info -n manual_container Name: manual_container
+State: RUNNING
+PID: 4283
+IP: 10.0.3.151
+
+attach with it:
+---------------
+root@ubuntu:~# lxc-attach -n manual_container 
+[root@manual_container ~]# exit
+exit
+root@ubuntu:~#
+
+============================================================================================================================================================================================================
+Chapter_3: Getting Started with LXC and LXD
+============================================================================================================================================================================================================
+3.1.Using LXC:
+---------------
+LXC is a container within a host machine that runs a full-fledged operating system isolated from the host machine. LXC shares the same kernel as the host machine’s kernel. In order to create different operating system containers we use templates which are scripts to bootstrap specific operating system.
+
+3.2.Templates:
+---------------
+The templates provided in LXC are scripts specific to an operating system. Each operating system that is supported by the LXC installation has a script dedicated to it. There is also a generic script called “download” that can install many different operating systems with a common interface. As of this writing, the download template can install the operating system distributions.
+
+3.3.Basic Usage:
+---------------
+the life cycle of an LXC container with the various states the container can get into:
+
+Create---->Stopped------>Starting------>Running, Freezed, Aborting,------->Stoping------->Destroy.
+
+3.4.A simple LXC lifecycle will have the following steps:
+----------------------------------------------------------
+1. lxc-create: Create a container with the given OS template and options.
+2. lxc-start: Start running the container that was just created.
+3. lxc-ls: List all the containers in the host system.
+4. lxc-attach: Get a default shell session inside the container.
+5. lxc-stop: Stop the running container, just like powering
+off a machine.
+6. lxc-destroy: If the container will no longer be used, then destroy it.
+
+
+3.5.Using the Download Template:
+-----------------------------
+Let’s look at how the preceding steps work in practice by creating a Debian Jessie container using the generic download template.
+
+3.6.lxc-create:
+----------------
+The lxc-create command creates the container with the given OS template and options provided, if any. As shown next, the -t option specifies the template that should be used to create the container, which in our example is the download template. The -n option is mandatory for most of the LXC commands which specifies the name of the container or in other words the container identifier name, which is an alphanumeric string.
+
+#$ sudo lxc-create -t download -n <ContainerName>xample-debian-jessie 
+
+By default, the lxc-create command creates the containers in the directory /var/lib/lxc/{container-name}; 
+for example, the new container will be created in the /var/lib/lxc/example-debian-jessie directory. 
+The following shows the contents of the container directory:
+
+$ sudo ls -alh /var/lib/lxc/example-debian-jessie 
+
+total 16K
+drwxrwx--- 3 root root 4.0K Jun 12 14:47 . drwx------ 4 root root 4.0K Jun 12 14:46 .. 
+-rw-r--r-- 1 root root 844 Jun 12 14:47 config drwxr-xr-x 22 root root 4.0K May 4 08:55 rootfs
+$ sudo ls /var/lib/lxc/example-debian-jessie/rootfs 
+bin dev home lib64 mnt proc run selinux boot etc lib media opt root sbin srv
+sys  usr tmp  var
+
+
+The configuration specific to this container exists in /var/lib/lxc/example-debian-
+jessie/config, the contents of which are shown here:
+
+$ sudo cat /var/lib/lxc/example-debian-jessie/config
+
+The default container creation path can be overridden using the -P option as shown here, which will create the container in /tmp directory:
+
+$ sudo lxc-create -P /tmp/ -t download -n example-debian-jessie
+
+
+3.7.lxc-start:
+--------------
+Before we start using the container, we must first start it by using the lxc-start command. The -d option in lxc-start will start running the container in daemon mode, where the boot process output is not visible:
+
+$ sudo lxc-start -d -n example-debian-jessie
+
+Because -d is the default mode, it is not mandatory to specify it. To instead start running the container in foreground mode, we can use the -F option. This is useful to see debug messages and the entire boot process output. Here is sample output produced by starting our container in foreground mode:
+
+$ sudo lxc-start -F -n example-debian-jessie
+
+systemd 215 running in system mode. (+PAM +AUDIT +SELINUX +IMA +SYSVINIT +LIBCRYPTSETUP +GCRYPT +ACL +XZ -SECCOMP -APPARMOR)
+Detected virtualization 'lxc'.
+Detected architecture 'x86-64'.
+Welcome to Debian GNU/Linux 8 (jessie)!
+
+3.8.lxc-ls:
+------------
+This command lists the containers available in the host system:
+
+$ sudo lxc-ls example-debian-jessie $
+
+lxc-ls is also capable of showing more information with the --fancy option:
+
+$ sudo lxc-ls --fancy
+
+NAME STATE AUTOSTART GROUPS IPV4 IPV6 example-debian-jessie RUNNING 0 - 10.0.3.206 -
+
+$lxc-ls comes in very handy to get an overview of all the containers in the host system.
+
+3.9.lxc-attach:
+---------------
+Our container example-debian-jessie is now started and running. To log in or get access to a shell on the container, we can use lxc-attach as the first step. The lxc-attach command is used to start a process inside a running container; alternatively, if there
+are no commands supplied, then lxc-attach gives a shell session within the running container, as shown here:
+
+$ sudo lxc-attach -n example-debian-jessie
+
+root@example-debian-jessie:/#
+bin dev home lib64 mnt
+boot etc lib media opt root@example-debian-jessie:/#
+Enter new UNIX password:
+Retype new UNIX password:
+passwd: password updated successfully root@example-debian-jessie:/
+
+# exit
+
+
+3.10.lxc-stop:
+---------------
+Once we are done with our work with the container, we can stop the container. Stopping the container is equivalent to powering down a machine; we can start the container again any time in the future. Again, it is necessary to use the -n option to provide the name of the container when using lxc-stop:
+
+$ sudo lxc-stop -n example-debian-jessie
+
+After the container is stopped, the lxc-ls fancy output shows the status of the container as STOPPED, as follows, which also shows that the corresponding IPv4 address is released:
+
+$ sudo lxc-ls --fancy
+
+NAME STATE AUTOSTART GROUPS IPV4 IPV6 example-debian-jessie STOPPED 0 - - - $
+
+3.11.lxc-destroy:
+-----------------
+To permanently delete a container from the host system, use the lxc-destroy command. This command is irreversible and any data or changes made within the container will be lost. Use this command only when you do not need the container any more. Again, this command takes the name of the container that should be destroyed via the -n option:
+
+$ sudo lxc-destroy -n example-debian-jessie Destroyed container example-debian-jessie
+$
+
+
+3.12.Using an OS Template:
+---------------------------
+In this section, we will create a container using a specific OS template, following the same steps as in the previous section. You can find all the available LXC OS template scripts in /usr/share/lxc/templates. In an LXC 2.0.7 installation, the templates shown in Table 3-2 are available.
+
+lxc-alpine lxc-altlinux lxc-archlinux lxc-busybox lxc-centos lxc-cirros
+lxc-debian lxc-fedora lxc-gentoo lxc-openmandriva lxc-opensuse lxc-oracle
+lxc-plamo lxc-slackware lxc-sparclinux lxc-sshd lxc-ubuntu lxc-ubuntu-cloud
+
+
+to find the options available with any template, use the --help option on the template, which will provide the complete usage information about that particular template. For example:
+$ sudo lxc-create -t fedora --help
+
+lxc-create:
+-----------
+In case of OS-specific templates, it is good to specify the OS release explicitly, instead of making the OS-specific template script choose a default release. This is shown in the following lxc-create command execution, which creates a container with a fedora template named example-fedora-25 and specifies the Fedora release as 25:
+
+$ sudo lxc-create -t fedora -n example-fedora-25 -- --release=25
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+3.13.Using LXD
+--------------
+Unlike LXC, which uses an operating system template script to create its container, LXD uses an image as the basis for its container. It will download base images from a remote image store or make use of available images from a local image store. The image stores are simply LXD servers exposed over a network.
+
+The image store that will be used by LXD can be populated using three methods:
+• Using a remote LXD as an image server
+• Using the built-in image remotes
+• Manually importing an image
+
+Using a Remote LXD As an Image Server:
+--------------------------------------
+A remote image server is added as a remote image store and you can start using it right away. The following output explains the same:
+$ lxc remote add stylesen 192.168.1.8
+$ lxc launch stylesen:image-name your-container
+Here, 192.168.1.8 is the LXD image server that you have configured and is accessible from your host machine, and stylesen is the short name you provide for the remote LXD image server.
+
+Using the Built-in Remotes:
+----------------------------
+By default, the LXD package configures three remotes and a local image store (local) that is communicated with via a local Unix socket. The three default remotes are as follows:
+• images: For distros other than Ubuntu
+• ubuntu: For stable Ubuntu images
+• ubuntu-daily: For daily Ubuntu images
+
+To get a list of remotes, use the following command:
+
+$ lxc remote list
+
+If this is your first time using LXD, you should also run: lxd init To start your first container, try: lxc launch ubuntu:16.04
+
+
++---------------+---------------------+-----------------+--------+--------+
+| NAME | URL | PROTOCOL | PUBLIC | STATIC | +---------------+---------------------+-----------------+--------+--------+ |
+ images | https://images.linuxcontainers.org | simplestreams | YES | NO | +---------------+---------------------+-----------------+--------+--------+
+ | local (default) | unix:// | lxd | NO | YES | +---------------+---------------------+-----------------+-----+-----|-----+ 
+| ubuntu | https://cloud-images.ubuntu.com/releases | simplestreams | YES | YES | +---------------+---------------------+-----------------+--------+--------+
+ | ubuntu-daily | https://cloud-images.ubuntu.com/daily | simplestreams | YES | YES | +---------------+---------------------+-----------------+-----+-----+-----+ $
+
+
+Manually Importing an Image:
+-----------------------------
+You can create LXD-compatible image files manually by following the specification available at https://github.com/lxc/lxd/blob/master/doc/image-handling.md.
+You can import the images that you create using this specification with the following command:
+
+# lxc image import <file> --alias <my-alias>
+
+
+Running Your First Container with LXD:
+---------------------------------------
+Beforecreatingyourfirstcontainer,youshouldrunlxd initasfollows,ifithasnotrunalready:
+
+$ lxd init
+
+Do you want to configure a new storage pool (yes/no) [default=yes]?
+Name of the new storage pool [default=default]:
+Name of the storage backend to use (dir) [default=dir]:
+Would you like LXD to be available over the network (yes/no) [default=no]? yes
+
+You can import or copy an Ubuntu cloud image using the ubuntu: image store with the following command:
+
+$ lxc image copy ubuntu:16.04 local: --alias ubuntu-xenial Image copied successfully!
+
+After importing the image to "local:": image-store, you can launch the first container with the following command:
+
+$ lxc launch ubuntu-xenial first-lxd-container Creating first-lxd-container
+
+Starting first-lxd-container
+$
+The preceding command will create and start a new Ubuntu container named first-lxd-container, which can be confirmed with the following command:
+
+$ lxc list 
+
++--------------+---------+-----------+-----------+------------+-----------+ 
+| NAME | STATE | IPV4 | IPV6 | TYPE | SNAPSHOTS | +--------------+---------+-----------+-----------+------------+-----------+ 
+
+| first- | RUNNING | 10.79. 218.118 | fd42:fb6:bc78: | PERSISTENT | 0 |
+lxd-
+(eth0) 699c:216:3eff: fe54:28d (eth0)
+container +--------------+---------+-----------+-----------+------------+-----------+ $
+
+
+If the container name is not given, then LXD will give it a random name. To get a shell inside a running container, use the following command:
+
+$ lxc exec first-lxd-container -- /bin/bash
+ 
+root@first-lxd-container:~# ls /
+bin dev home lib64 mnt proc run snap sys usr
+
+To run a command directly without starting a shell, use the following command:
+
+$ lxc exec first-lxd-container -- apt-get update
+
+Alternatively, you can use the lxc-console command provided by the lxc-tools
+package to connect to the LXD container:
+
+$ sudo lxc-console -n first-lxd-container -P /var/lib/lxd/containers -t 0
+
+The LXD containers are created by default in the /var/lib/lxd/containers/
+For example, the preceding LXD container (first-lxd-container) is created in /var/lib/lxd/containers/first-lxd-container,
+
+
+$ sudo ls -alh /var/lib/lxd/containers/
+$ sudo ls -alh /var/lib/lxd/containers/first-lxd-container/
+$ sudo ls /var/lib/lxd/containers/first-lxd-container/rootfs/
+
+To copy a file from the container to your normal system, use the following command:
+
+$ lxc file pull first-lxd-container/etc/hosts .
+
+To put a file inside the container, use the following command:
+
+$ lxc file push hosts first-lxd-container/tmp/
+
+To stop a running container, use the following command, which will stop the container but keep the image so it may be restarted again later:
+
+$ lxc stop first-lxd-container
+$ lxc list
+
+To permanently remove or delete the container, use the following command:
+
+$ lxc delete first-lxd-container
+$ lxc list
+
+==========================================================================================================================================================================================================
+Chapter 4:LXC and LXD Resources:
+==========================================================================================================================================================================================================
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
