@@ -1,0 +1,341 @@
+============================================================================================================================================================================================================
+CHAPTER-3: SCHEDULERS:
+============================================================================================================================================================================================================
+1.MANUAL SCHEDULING:
+======================
+- Manual Scheduling pods on a Node.
+- Every POD has a field called Node Numbers by default its not set. Normally we won't specify this when we create a pod.k8's only assigned by default.
+- k8's scheduler looks all the nodes & finds which node having specified node name.
+- you can deploy on selected nodes by setup node name field.
+-----------------------------------------------------------------------
+ManualScheduling_pod.yaml
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx
+  labels:
+    env: test
+spec:
+  containers:
+  - name: nginx
+    image: nginx
+    imagePullPolicy: IfNotPresent
+  nodeName: Workernode Name
+
+-----------------------------------------------------------------------
+
+Note: u can't assign pods to nodes once its deployed k8's won't allow you.
+----- u can use pod binding to assign pod to node.
+
+PODBINDING YAML:
+-----------------------------------------------------------------------------
+apiVersion: V1
+Kind: Binding
+Metadata:
+ Name: nginx
+
+target:
+ apiVersion: V1
+ Kind: Node
+ Name: NODENAMEWORKERNODE
+
+Send post Request:
+------------------
+# curl --header "content-Type:application/json" --request POST --data '{"apiVersion":"V1","kind":"Binding"....}  http://$server/api/v1/namespace/default/pods
+
+============================================================================================================================================================================================================
+2.LABELS & SELECTORS:
+=====================
+- Labels & Selectors are used to a group things together.
+
+Ex: colours:  red, white, blue, green
+    Vehicles: cars, busses, keep
+    Animals:  cat, dog, fox
+
+- labels& selectors are also used for filter purpose 
+- in k8's 100s or 1000s of objects so your are going to use labels& selectors to group required objects.
+
+---------------------------------------------------------------------------------------------------------
+labels&selectors-definition.yaml
+
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  labels:----------------------------LABELS
+    app: nginx
+spec:
+  replicas: 3
+  selector:--------------------------SELECTORS
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.14.2
+        ports:
+        - containerPort: 80
+----------------------------------------------------------------------------------------------------------------------------- 
+ANNOTATIONS:
+=============
+To add additional info to the labels like add numbers ,fax etc , you can use annotations.
+
+Pod-def.yaml
+---------------------------------------------------------------
+Annotations u can see:
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: annotations-demo
+  annotations:
+    imageregistry: "https://hub.docker.com/"
+spec:
+  containers:
+  - name: nginx
+    image: nginx:1.14.2
+    ports:
+    - containerPort: 80
+---------------------------------------------------------------
+
+============================================================================================================================================================================================================
+3.TAINTS & TOLERATIONS:
+========================
+- To prevent a bug tolerant on a person we taint a spray on a person then bug will be intolerant on a person.
+- While bug approach a person the spray we taint on person will not allow bug.
+- two methods bugs can tolerate taints.
+
+In K8'S:
+========
+- Taints & Tolerations are used to set Restrictions on what pods can be scheduled on what Nodes.
+
+- Taint = Blue -----Toleration = Blue
+
+- what ever the pods having toleration those pods can match taints & they can deploy
+
+- of pod having toleration then it will go to deploy on tainted nodes remaining pods will deploy on remaining Nodes.
+- taints set to nodes & Tolerations set to pods
+
+TAINT NODE:
+-----------
+# kubectl taint nodes  node-name key=value:taint-effect
+
+# kubectl taint nodes  WOKERNODENAME  app=blue:NOSchedule
+
+-The taint effect defines what would happens to Node that do not tolerate this taint
+
+Taint Effect:
+-------------
+NoSchedule:  pods will not be schedule on nodes
+-----------
+PreferNoSchedule: System will try to avoid placing pod on node 
+----------------
+NoExecute: NewPods will No Scheduled existing pods on node will be evicte
+----------
+
+TOLERATIONS:
+------------
+- Tolerations will be added to the pods
+----------------------------------------------------------------------------
+Pod-def.yaml 
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx
+  labels:
+    env: test
+spec:
+  containers:
+  - name: nginx
+    image: nginx
+    imagePullPolicy: IfNotPresent
+  tolerations:
+  - key: "app"
+    operator: "equal"
+    Value: "blue"
+    effect: "NoSchedule"
+-----------------------------------------------------------------------
+
+NOTE: Taints & Tolerations are used to restrict pods deployment on NODES.
+
+============================================================================================================================================================================================================
+4.NODE SELECTORS:
+=================
+- using node selectors u can deploy pods on particular nodes 
+- u can label the worker nodes then assign pods to nodes using node selectors.
+
+1.Create label a Node:
+----------------------
+# kubectl label nodes  <NodeName>  <Label-key>=<label-Value>
+
+# kubectl label nodes  NODENAME  size=large
+
+Limitations:
+------------
+-Large or Medium
+-Not Small
+
+2.Create a POD along with Node Selector:
+-----------------------------------------
+Node selector pod.yaml
+------------------------------------------------------------------------------------
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx
+  labels:
+    env: test
+spec:
+  containers:
+  - name: nginx
+    image: nginx
+    imagePullPolicy: IfNotPresent
+  nodeSelector:
+    size: large
+
+-----------------------------------------------------------------------------------
+
+============================================================================================================================================================================================================
+5.NODE AFFINITY:
+=================
+- purpose of node affinity are to ensure pods are hosted on particular nodes. Same like node selectors 
+- node affinity provides advanced features to deploy pods on dedicated servers.
+
+Def.yaml
+----------
+apiVersion: v1
+kind: Pod
+metadata:
+  name: with-node-affinity
+spec:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: kubernetes.io/e2e-az-name
+            operator: In
+            values:
+            - e2e-az1
+            - e2e-az2
+      preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 1
+        preference:
+          matchExpressions:
+          - key: another-node-label-key
+            operator: In
+            values:
+            - another-node-label-value
+
+- Check for other operators
+- place pods to correct nodes uses node affinity
+
+Types of Node Affinity:
+-----------------------
+CHECK ONLINE GOOGLE HELP
+============================================================================================================================================================================================================
+6.RESOURCE REQUIREMENTS & LIMITATIONS:
+=======================================
+- just like resource Quotas.
+- Scheduler will schedule pods on nodes based on resource availability. If no resource on nodes. Scheduler will deploy on other nodes.
+- if no response available on any of available nodes pod deployment will go for pending state.
+
+--------------------------------------------------------------------
+Resource requirements.yaml
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: frontend
+spec:
+  containers:
+  - name: app
+    image: images.my-company.example/app:v4
+    resources:
+      requests:
+        memory: "64Mi"
+        cpu: "250m"
+      limits:
+        memory: "128Mi"
+        cpu: "500m"
+---------------------------------------------------------------------
+- resource & limits sets to each container in a pod.
+- if memory resource reaches limit the pod will be terminated.
+
+============================================================================================================================================================================================================
+7.DAEMONSETS:
+================
+- Daemonsets are like replicasets it will deploy pods on nodes.
+- but daemonsets will maintain  a pod on each & every node to maintain a productivity.
+- if a new node added the deployment will add an pod to node.
+
+Example:
+--------
+Daemonsets is used for monitor solutions like above monitoring solution will add pod for all nodes to monitor logs using daemonsets.
+
+-----------------------------------------------------------------------------------------------------------------------------------
+
+Daemonsets-def.yaml
+
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: fluentd-elasticsearch
+  namespace: kube-system
+  labels:
+    k8s-app: fluentd-logging
+spec:
+  selector:
+    matchLabels:
+      name: fluentd-elasticsearch
+  template:
+    metadata:
+      labels:
+        name: fluentd-elasticsearch
+    spec:
+      tolerations:
+      # this toleration is to have the daemonset runnable on master nodes
+      # remove it if your masters can't run pods
+      - key: node-role.kubernetes.io/master
+        effect: NoSchedule
+      containers:
+      - name: fluentd-elasticsearch
+        image: quay.io/fluentd_elasticsearch/fluentd:v2.5.2
+        resources:
+          limits:
+            memory: 200Mi
+          requests:
+            cpu: 100m
+            memory: 200Mi
+============================================================================================================================================================================================================
+8.STATIC PODS:
+================
+- Normally kubelet depends on scheduler to deploy pods.
+- kubelet can manage independently with out any api pr scheduler kubelet can deploy pods.
+
+Static pods Dir:
+================
+
+/etc/kubernetes/manifests- place pod def files static pods
+- static pods will be created by kubelet with out any support
+- static pods only for pods not supposed for any replicasets or deployments.
+
+Verify:
+--------
+# docker ps
+
+Why Static pods:
+---------------
+
+- used for control plane components such as etc, api etc as a static pods on a cluster
+
+# kubectl gets pods -n Kubernetes-system
+
+============================================================================================================================================================================================================
