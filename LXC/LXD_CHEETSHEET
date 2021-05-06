@@ -1,5 +1,15 @@
 Useful LXD commands:
 =====================
+Daily Useful LXC Commands:
+===========================
+list containers (all details): # lxc-ls -f
+attach to a container: # lxc-attach -n <name from list>
+detach from container: ctrl+D or # exit
+stop a container: # lxc-stop -n <name from list>
+start a container # lxc-start -d -n <name from list>
+* don't forget the -d switch or it won't start daemonized!
+check all LXC containers on host for full filesystem: # for i in $(lxc-ls -f | awk '/^[0-9]/{print $1}');do echo $i;lxc-attach -n $i -- df -h |egrep '8.\%|9.\%|100\%'; done
+====================================================================================================================================================================    
 1.Installation of LXC:
 =======================
 RedHat/CentOS:
