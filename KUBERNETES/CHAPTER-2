@@ -1,0 +1,612 @@
+============================================================================================================================================================================================================
+CHAPTER-2: CORE CONCEPTS
+============================================================================================================================================================================================================
+- Purpose of k8's is to host your apps in the form of containers in a automated phasing.so that you can easily deploy as many as you can. You can enable communication between all containers easily.
+- k8's cluster contains set of Nodes which may be physical, virtual, or cloud machines. Which contains applications in the form of containers.[worker nodes].
+- To maintain all APPS which is running on worker nodes [Master Node].
+
+1.KUBERNETES ARCHITECTURE:
+===========================
+
+MASTER NODE COMPONENTS:
+========================
+1.ETCD CLUSTER:
+---------------
+- etc cluster is a db which stores k8 info in a key value format.
+
+2.KUBE-SCHEDULER:
+-----------------
+- schedulers identifies the right node to place a container based on resource requirements available on worker nodes.
+
+3.KUBE-CONTROLLERS:
+-------------------
+- Controller managers are to control k8's cluster.
+
+4.KUBE API SERVER:
+-------------------
+- it is primary management component of Kubernetes. It is responsible for all orchestration with in the cluster works with API [REST API].
+
+5.DOCKER ENGINE:
+----------------
+- Container Run time Engine.
+
+WORKER NODE COMPONENTS:
+=======================
+1.DOCKER ENGINE:
+----------------
+- Container Run time Engine.
+
+2.KUBELET:
+==========
+- its an agent & runs on each noden in a cluster. It listens instructions from Kubernetes-api server & deploy or destroy containers on worker nodes.
+- kube-api server fetches reports of node from kubelet agents to monitor node & container status.
+
+3.KUBE_PROXY:
+=============
+- Communication between worker nodes & apps running on them as a containers will be done by Kubernetes proxy.
+- KubeProxy service ensures that necessary rules enable to make communication.
+
+============================================================================================================================================================================================================
+2.ETCD CLUSTER:
+====================
+- Etcd is a distributed reliable key-value store that is simple, secure & fast.
+- etcd role in k8's is etcd data store stores info regarding cluster such as -Nodes,Pods,config,Secreats Accounts etc.
+- every info u see  when u run kubectl get cmd is from etcd server.
+- every change when you add nodes, pods, etc, it will update to etcd Server.
+
+Intall etcd:
+------------
+1.DOWNLOAD BINARIES--------->>2.EXTRACT------>>3.RUN ETCD SERVICES   PORT: 2379
+
+COMMANDS:
+----------
+- it stores info to a key & Value Format.
+  EX: KEY=VALUE / No of Nodes=2
+
+# kubectl get pods -n kube-system  --------To find etcd Services.
+# we can config etcd in HA Environment 
+- etcdctl is a tool used to interact with etcd.
+
+# etcdctl snapshot save 
+# etcdctl endpoint health
+# etcdctl get
+# etcdctl put 
+
+============================================================================================================================================================================================================
+5.KUBE-API SERVER:
+===================
+- kube API Server is primary management component in k8's.
+- when you run a "kubectl" cmd will reaches to kube api server.
+- kubectl utility infact it will reaches to kube-api-server.kube-api server first authenticates the req & validates it then retrives the data from etcd cluster 
+  responds back with a req cmds.
+
+API-REQ = 1.Authenticate User------2.Validate request--------3.RetriveData-------4.updated ETCD.
+
+- the scheduler continiously monitor kube-api server & realises that the pod has no node assighned & helps to find & identifies right node to place a new pod
+  on & communication that back to kube-api-server then api server updates info to etcd cluster then the api server then passes info to 'kubelet' on worker node.
+
+- kubelet that creates the pod & instructs the container runtime engine to deploy app image. once done the kubelet updates status back to kube-apiserver then its updates to etcd db.
+
+- Similar above pattern will be followed for all changes in cluster.
+
+-Kube Api Server:
+------------------
+1.Authenticate user
+2.validate Request
+3.Retrive data.
+4.Update ETCD.
+5.Scheduler.
+6.kubelete.
+
+Note: only kube-api server will contact with etcd-db in the cluster.
+-----
+
+Installation:
+--------------
+1.DOWNLOAD BINARIES--------->>2.EXTRACT------>>3.RUN
+
+# kubectl get pods -n kube-system ------>find kube-api pod
+
+verify:
+-------
+# ps - aux  | grep kube-apiserver 
+
+============================================================================================================================================================================================================
+6.KUBE CONTROLLER MANAGER:
+===========================
+- kube controller Manager manages various controllers in k8's.
+- a controller is a process that continiously monitors the state of various components in the system & work towards bringing the whole 
+  system to a desired functional state.
+
+NODE CONTROLLERS:
+=================
+- monitors nodes & keep apps up & running node controller checks the status of nodes for every "5 sec" this way node controller can monitor node.
+  if stops receiving health checks report from node. then node will mark as unreachable & waits for 40 sec before marking it unreachable & waits for 40 sec.
+  
+- before marking it unreachable it gives 5 minutes to come back node. if node doesnt come back it removes pods form that node & provisiona pods on healthy nodes.
+  if pods are a part of a "replicaset" 
+  
+1.watch status.
+2.remediate situation
+3.node monitor period 5sec
+4.node monitor grace 40 sec 
+5.pod evacuation time out= 5 minutes
+
+REPLICATION CONTROLLERS:
+=========================
+- its responsible to monitor status of replicasets & ensures that desired state of pods always up & running all time with in set & if anything happend to any pod 
+  it will creates that pod automatically.
+- like above there are somany controllers below :
+- Deployment Controllers,Name,EndPoint,Replicaset,PV-Binder,Node Controller,Service Account Controller, name Space controller.  
+
+- kubernetes contollers are " BRAINS OF KUBERNETES"
+- All controllers are packed with " KUBE-CONTROLLER-MANAGER".
+
+Installation:
+--------------
+1.DOWNLOAD BINARIES------->2.EXTRACT------>3.RUN.
+
+Verify:
+--------
+# kubectl get pods -n kube-system -----to find controllers.
+
+# ps -aux | grep kube-controller.
+
+============================================================================================================================================================================================================
+7.KUBE-SCHEDULER:
+==================
+- scheduler is responsible for scheduling pods on nodes.
+- it only resides which pod goes on which nodes it doesn't actually place pods.
+- depending on resource requirements -scheduler try to find best node for pods as per resource requirements.
+  Filter nodes + rank nodes.
+
+MORE TOPICS:
+-----------
+- Resource requirements & limits.
+- Taints & tolerations.
+- Node Selectors / Affinity.
+
+Install:
+--------
+1.Download Binaries------->2.Extract--------3.Run
+
+Verify:
+-------
+# kubectl get pods -n Kubernetes-system
+
+process:
+--------
+# ps - aux | grep cube-scheduler
+
+============================================================================================================================================================================================================
+8.KUBELET:
+===========
+- Kubelet is captain of the worker nodes.
+- Kubelet in the Kubernetes registers the worker nodes to master node.
+- When kubelet receives a req to deploy a pod. Then kubelet req docker run time engine to deploy pod &response back to Kubernetes-api server.
+- kubelet will collect all node info & pods info which is deployed on worker nodes reports will share back to kibe-api
+
+Install:
+--------
+1.Download Binaries------------>2.Extract----------->3.RUN.
+
+Verify:
+--------
+# ps- aux | grep kubelet
+
+============================================================================================================================================================================================================
+9.KUBE-PROXY:
+=============
+- With in a Kubernetes cluster every pod can reach to other pods this is accomplished by a pod networking solution to the cluster.
+- pod n/w is an internal virtual n/w expands across all the nodes in the cluster to all pods get connected.
+- through this n/w u can communicate with each other there are many solutions available to deploy pod n/w.
+
+EX:
+----
+- To make communication for pools from outside world Kubernetes proxy will create services & accessible. From outside.
+- it uses potable rules.
+
+INSTALL:
+--------
+1.Download Binaries---------->2.Extract---------->3.RUN
+
+Process:
+-------
+# ps - aux | grep kube-proxy
+
+============================================================================================================================================================================================================
+10.PODS:
+========
+- before understanding pods we would like to assume
+
+# DOCKER IMAGE          +    KUBERNETES CLUSTER
+  BUILD
+  UPLOAD TO DOCKER HUB
+  PULL DOWN + RUN
+
+POD:
+-----
+- Pods are the smallest deployable units of computing that you can create and manage in Kubernetes
+- K8's aim is to deploy apps in a form of containers on a set of ems that are config as worker nodes in a cluster.k8's doesn't deploy containers on workers.
+- containers are encapsulated in to k8's objects known as pods.
+- a pod is a single instance of an application.
+- a pod is an smallest object that you can create in k8's
+- pods usually have a one to one relation ship b/w containers. To scale up a create new pods 7 scale down  to delete existing pods.
+
+Multicontainer PODS:
+--------------------
+- A Pod can encapsulate an application composed of multiple co-located containers that are tightly coupled and need to share resources.
+- example, one container serving data stored in a shared volume to the public, while a separate sidecar container refreshes or updates those files. 
+  The Pod wraps these containers, storage resources, and ephemeral network identity together as a single unit.
+
+
+Commands:
+---------
+Create Pods:
+------------
+# kubectl run nginx.                      # to deploy pods
+# kubectl run nginx  --image=nginx        # deploy pods using specific image
+
+List:
+-----
+# kubectl get pods.
+
+
+POD_YAML:
+---------------------------------------------------------------------------------------------
+vi pod_definition.yaml
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: hello
+spec:
+  template:
+    # This is the pod template
+    spec:
+      containers:
+      - name: hello
+        image: busybox
+        command: ['sh', '-c', 'echo "Hello, Kubernetes!" && sleep 3600']
+      restartPolicy: OnFailure
+    # The pod template ends here
+---------------------------------------------------------------------------------------------
+Create:
+-------
+# kubectl create -f  pod_definition.yaml
+
+List:
+-----
+# kubectl get pods
+
+Verify:
+-------
+# kubectl describe pods  <podname>
+
+============================================================================================================================================================================================================
+11.REPLICASET:
+===============
+KUBERNETES CONTROLLERS:
+------------------------
+- controllers are brain behind k8's.
+- there are processes that continuously monitors k8 objects 7 responds accordingly.
+
+REPLICATION CONTROLLER:
+-----------------------
+- if we have a single pod running our app & for some reason our app clashes & the pod fails users will no longer will access your app.
+- To prevent users to lose access to app. We would like to have more than one instance or pod running at same time.
+- this way if one fails still we have our app runs with other pods.
+- RC helps us run multiple instances of a single pod in a k8's providing HA.
+- even if u have single pod RC will work if that fails it will recreate pod.
+- specified no of pods will run all the time "1" or "100".
+
+LOADBALANCING & SCALING:
+------------------------
+- another reason is RC will provide load balancing & scaling when usage got increased more & More.
+
+Diff b/w Replication controller & Replicaset:
+---------------------------------------------
+Replication Controller [old model] = Replicaset [New model]
+
+-----------------------------------------------------------------------------------------------------------------------------------
+YAML FORMAT:
+-------------
+Replication Controller / Replicaset YAML:
+
+apiVersion: apps/v1
+kind: ReplicaSet / Replication Controller
+metadata:
+  name: frontend
+  labels:
+    app: guestbook
+    tier: frontend
+spec:
+  # modify replicas according to your case
+  replicas: 3
+  selector:
+    matchLabels:
+      tier: frontend
+  template:
+    metadata:
+      labels:
+        tier: frontend
+    spec:
+      containers:
+      - name: php-redis
+        image: gcr.io/google_samples/gb-frontend:v3
+
+--------------------------------------------------------------------------------------------------------------------------------------
+COMMANDS:
+---------
+
+# kubectl create -f Replication Controller_definition.yaml
+
+Verify:
+-------
+# kubectl get replication controllers/replicasets
+
+Describe:
+---------
+# kubectl describe replicates/replication controller
+
+Delete:
+--------
+# kubectl delete replicates  replicasetname
+
+Modify:
+-------
+Kubectl replace -f Replication Controller_definition.yaml
+
+============================================================================================================================================================================================================
+12.LABELS & SELECTORS:
+=======================
+
+- to identify the pods "Lables" will be useful
+- RC will use labels to monitor by using "selectors"
+- labels and selectors are used every where.
+
+============================================================================================================================================================================================================13.SCALE REPLICAS:
+==================
+
+- To scale pods:
+- update no of pods in def.yaml
+
+# kubectl replace -f replicates.yaml
+
+# kubectl scale --replicas=6 -f replicates/replicasetname.yaml
+
+# # kubectl scale --replicas=6 -f replicates/replicasetname
+
+============================================================================================================================================================================================================14.DEPLOYMENTS:
+===============
+- In production all apps will be deployed as a deployments more uses like ,easy upgrades, downgrades, scale etc
+- Deployments uses replicates.
+- less down time, rolling updates = one by one app & rollback
+
+ROLLING UPDATE:
+---------------
+- When new version of app release we can update using rolling update it will update all apps one by one.
+
+ROLLBACK:
+-----------
+- any upgrade failed u can rollback to old version easily.
+
+-------------------------------------------------------------------------------------------------------------------------------
+YAML FOR DEPLOYMENT:
+-------------------------
+Deployment_definition.yaml
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  labels:
+    app: nginx
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.14.2
+        ports:
+        - containerPort: 80
+---------------------------------------------------------------------------------------------------------------------------------------------
+COMMANDS:
+----------
+CREATE:
+----------
+
+# kubectl create -f  deployment-def.yaml
+
+List:
+-----
+# kubectl get deployments    -------------list deployments
+# kubectl get replicasets.   -------------list replicasets
+# kubectl get pods           -------------list pods
+
+All:
+-----
+# kubectl get all
+
+Verify:
+--------
+
+# kubectl describe  deployments/deploymentname
+
+============================================================================================================================================================================================================
+15.NAME SPACES:
+================
+- NameSpaces is a kind of projects or tenants in OpenStack.
+- k8's supports multiple virtual cluster backed by the same physical cluster.
+- a love these virtual cluster are called namespaces.
+- its have own set of policies & resources quota requirement.
+
+Commands:
+---------
+List pods from specific Namespace:
+----------------------------------
+# kubectl get pods  --namespace=kube-system
+
+Create Deployment on name space:
+--------------------------------
+
+# kubectl create -f deployment.yaml --namespace=development
+
+
+-----------------------------------------------------------------------------------------------
+YAML FOR NAMESPACE:
+--------------------
+Namespace.yaml
+
+apiVersion: V1
+Kind: nameSpace
+Metadata:
+  Name: dev
+
+Command:
+--------
+# kubectl create -f namespace.yaml
+
+Using cli :
+-----------
+# kubectl create namespace dev 
+
+List:
+----
+# kubectl get namespace
+
+Verify:
+-------
+
+# kubectl  describe namespace/namespacename
+
+Setup Default NameSpace:
+------------------------
+
+# kubectl config set-context $(kubectl config current context) --namespace=development
+
+
+RESOURCE QUOTA:
+----------------
+- To limit resources to the NAMESPACE [ PROJECT or TENANTS ]
+
+-------------------------------------------------------
+YAML FOR RESOURCE QUOTA OF NAMESPACE
+
+Resourcequota.yaml
+
+
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: mem-cpu-demo
+spec:
+  hard:
+    requests.cpu: "1"
+    requests.memory: 1Gi
+    limits.cpu: "2"
+    limits.memory: 2Gi
+---------------------------------------------------------
+
+# kubectl create -f respurcequota.yaml
+============================================================================================================================================================================================================
+16.SERVICES:
+================
+- K8's Service enables communication b/w with in & outside of the applications.
+- k8's service helps us to connects apps & other apps
+
+Ex:
+----
+Apps running with multiple pods will communicate. Through services.
+
+SERVICE TYPES:
+--------------
+1.NodePort Service:
+-------------------
+Accessing Pods from outside world.
+
+2.Cluster Ip:
+-------------
+Enable communication b/w set of from-end & Backend & DB Servers.
+
+3.Load Balencer:
+------------------
+Provides Load balancer for APPS.
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+1.NODE PORT SERVICE:
+---------------------
+Accessing Pods from outside world: 1.target-----2.service port-----------3.node port
+---------------------------------------------------------------------------------------------------------------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-service
+spec:
+  type: NodePort
+  selector:
+    app: frontend
+  ports:
+      # By default and for convenience, the `targetPort` is set to the same value as the `port` field.
+    - port: 80
+      targetPort: 80
+      # Optional field
+      # By default and for convenience, the Kubernetes control plane will allocate a port from a range (default: 30000-32767)
+      nodePort: 30007
+
+PART:2:To map NODE PORT SERVICE AND POD:
+-----------------------------------------
+
+apiVersion: apps/v1
+kind: ReplicaSet / Replication Controller
+metadata:
+  name: frontend
+  labels:
+    app: guestbook
+    tier: frontend
+spec:
+  # modify replicas according to your case
+  replicas: 3
+  selector:
+    matchLabels:
+      tier: frontend
+  template:
+    metadata:
+      labels:
+        tier: frontend
+    spec:
+      containers:
+      - name: php-redis
+        image: gcr.io/google_samples/gb-frontend:v3
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+COMMANDS:
+----------
+Create:
+-------
+# kubectl create -f MyNodePort-Service.yaml
+
+List:
+----
+# kubectl get services
+
+Verify:
+--------
+#curl https://192.168.1.1:30007
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+2.CLUSTER IP:
+==============
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+3.LOAD BALENCER IP:
+===================
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
