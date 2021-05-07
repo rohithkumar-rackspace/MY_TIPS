@@ -1,0 +1,205 @@
+============================================================================================================================================================================================================
+CHAPTER-6: CLUSTER MAINTAIENCE
+===========================================================================================================================================================================================================
+1.OPERATING SYSTEM UPGRADES:
+=============================
+- Imagine your pods are running on a few node cluster now one situation came like cluster node os upgrade. Or O.S patching or Security Patching.
+- Now imagine what will happens to the pods running on cluster nodes what happens when one of the node gets down.How we can deploy pods running on down node to other nodes & how to make sure users don't      have any downtime.
+- K8's will do when node came back immediately  then kubelet process start when node come back online. If node cannot come back for more than 5 minutes  pods will be terminated from node & recreates pods       Other nodes [ because k8's consider Node is Dead. ]
+- if any maintaience tasks can be planned & if you are sure that tasks can be completed in 5 minutes then no pods can be effects.
+- if you are not sure that your node will come back in 5 minutes then u have diff procedure.
+
+Procedure:
+-----------
+1.purposefully drain nodes & perform maintainence taks.
+
+# kubectl drain NODE-1  --------To Drain Node.
+
+Note: now pods will be moved to other nodes & make node as NoSchedule.
+-----
+2. Now perform all maintainence tasks & security patches etc & make node is available
+   Even when node comes back online pods cannot be deployed until you uncordon the Node.
+
+3.Make Node as uncordon state & Make Node as Schedulable for PODS.
+
+# kubectl cordon/uncordon Node1.
+
+============================================================================================================================================================================================================2.Kubernetes Software Versions:
+================================
+K8 Releases & versions:
+-----------------------
+To Check Versions:
+--------------------
+# kubectl get nodes
+
+How Kubernetes Manages Versions & Releases:
+--------------------------------------------
+V1.    11.                 3         = K8 Versions
+----- ------             ------
+Major Minor.             patch
+      Features           bug fixes
+      functionalities    Security Patches
+
+-Every few Months K8's releases a minor release
+
+
+
+                    V0.20           V1.0( 1st major release).               V1.10.0           v1.13.0 [stable version]
+-------->------------->-------------->-------------------------->----------->----------------->----------------------------->>>>
+       V0.12                                                   v1.2.0
+
+
+Alpha & Beta releases: Bug fixes & improvement
+----------------------
+K8's Package: V1.13.4= having all k8's master node packages
+----------------------
+
+NOTE: all master node components are in same Version Except etc & Core DNS
+-----
+Kube-API-SERVER: v1.13.4
+Controller Manager: v1.13.4
+Kube-Scheduler: v1.13.4
+kubeProxy: v1.13.4
+Kubectl: v1.13.4
+Etc-cluster: v3.2.18
+CoreDNS: v1.13
+OWN Version Sperate Projects.
+
+============================================================================================================================================================================================================
+3.CLUSTER UPGRADE PROCESS:
+==========================
+Cluster Upgrade:
+-----------------
+1.MASTERNODE:
+-------------
+- All Master Node Components should be "same versions" 
+- since Kubernetes api-server is leading cluster no other components of master node should be higher than kube-apiserver versions
+
+KUBE-API SERVER: X=v1.10
+CONTROLLER MANAGER & KUBE-SCHEDULER: X-1=v1.9 or v1.10
+KUBELET & KUBEPROXY: can be X-2= Two versions lesser v1.8 or v1.9 or v1.10
+KUBELET: X+1 > X-1 Higher or Lower or Equal
+
+- Any time K8 supports recent 3 Minor Versions [ current Versions: v1.10 ]
+
+Recommended way of upgrade cluster : one minor version------------one minor version--------one minor version 
+
+- Upgrade process depends on how your cluster got setup.
+
+1.Google Cloud Setup: Upgrade easily with one click
+---------------------
+2.Kubeadm Tool: # kubeadm upgrade plan
+--------------- # kubeadm upgrade apply
+
+
+3.The Hardway: you have to upgrade manually each & every component.
+--------------
+
+-Upgrade cluster involves two steps:
+
+1.First upgrade Master Node
+2.Second Upgrade Worker Nodes
+
+
+- while master node upgrade your master node components will be down. It doesn't mean your cluster is not working.
+- all worker nodes are continue to work for user request while upgrade.
+- but u can't access cluster using kubectl.
+- you cannot Modify/Add/Delete new pods to work nodes.
+- once master node upgrades now all functionality.
+
+2.WORKER NODE UPGRADES:
+------------------------
+Two Strategys:
+
+1.all worker nodes upgrade once [ Down Time ]
+2.one worker node at one time [ no down time ]
+  -work loads will be moved to one to another while upgrade
+3.add new nodes to cluster [No Down Time ]
+- add new worker nodes to cluster which is having higher version of software & then remove old software version of worker nodes from cluster.
+
+LAB:
+-----
+STEP:1:
+--------
+1.MASTER NODE UPGRADE:
+----------------------
+1. Kubeadm upgrade plan.                     #to view upgrade plan
+
+2. apt-get upgrade -y kubeadm=1.2.0.00.      #Download Kubeadm Package 
+
+3. Kubeadm upgrade apply v1.12.0             #apply upgrade
+
+4. kubectl get nodes                         #verify
+
+5. apt-get upgrade -y kubelet=1.12.00        #upgrade
+
+   # Systemctl restart kubelet
+
+   # kubectl get nodes                       # verify
+
+STEP:2:
+-------
+2.WORKER NODES:
+---------------
+1. kubectl drain nodename                   #terminate pods safely no new pods deploy
+
+2. apt-get upgrade -y kubeadm=1.12.0.00
+
+3. apt-get upgrade  -y kubelet=1.12.0
+
+4. Kubeadm upgrade node config  --kubelet-version  v1.12.0
+
+5. systemctl restart kubelet
+
+6. Kubectl get nodename
+
+7. Kubectl uncordon  nodename
+
+============================================================================================================================================================================================================4.BACKUP & RESTORE METHODS:
+============================
+- All Resource configs will be stored in etcd cluster like resource configs, etc cluster, persistent volumes.
+
+- if you want save your cluster info just follow the declarative approach to create K8 configs.
+
+- all objects yaml files will be stored in single dir for backup & restore.
+
+Note: USE GITHUB
+-----------------
+- its good if u store all your yaml files  [ recommended ]
+
+Better Approach Backup:
+-----------------------
+
+# kubectl get  -all-namespaces -o yaml > all-deploy-services.yaml
+
+& backup tools Search in GOOGLE
+
+
+1.Backup ETCD:
+---------------
+- you can take etc cluster backup using snapshots.
+
+Create:
+-------
+# ETCDCTL_API=3 etcdctl  snapshot save  snapshot.db
+
+# ls -lart
+
+Status:
+---------
+# ETCDCTL_API=3 etcdctl snapshot status snapshot.db
+
+
+Restore:
+---------
+# service kube-apiserver stop
+
+# use restore cmd
+
+# systemctl daemon reload
+
+# service etc restart
+
+# service kube-apiserver start
+
+============================================================================================================================================================================================================
