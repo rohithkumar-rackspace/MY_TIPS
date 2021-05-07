@@ -1,0 +1,301 @@
+==========================================================================================================================================================================================================
+CHAPTER-5: APPLICATION LIFECYCLE MANAGER
+==========================================================================================================================================================================================================
+1.Rolling Updates & RollBack:
+=============================
+- When u first create a deployment "RollOut 1" will be created. A new rollout creates a new "revision 1" creations.
+- in future a new container version deployed a new rollout will be created a new "rollout3" creates a new "revision2".
+
+NOTE: above rollouts will help you to keep track of changes Version 1 to version2 to version3 mades to your deployment & enables us to rollback your app if needed.
+-----
+
+ROLLOUT:  
+---------
+
+Revision 1:   NGINX:1.2.    NGINX:1.2.   NGINX:1.2
+-----------
+
+Revision 2:  Nginx:1.3.    Nginx:1.3.   Nginx:1.3. 
+-----------
+
+ROLLOUT COMMANDS:
+-----------------
+# kubectl rollout status  deployment/myapp-deployment
+
+History of Rollout:
+-------------------
+# kubectl rollout history deployment/my-app-deployment
+
+
+1.2.DEPLOYMENT STRATEGY:
+========================
+
+1.RECREATED STRATEGY:
+----------------------
+- if you have 5 pods contains web app Nginx 1.2 if you want to upgrade to Nginx 1.3. if you delete all 5 pods of lower version & create new 5 pods with new nginx 1.3 version.
+
+- Destroy all pods = Create New Pods
+
+NGINX 1.2.  NGINX 1.2 NGINX 1.2 [ down all pods at once ] =  NGINX 1.3. NGINX 1.3. NGINX 1.3 [up all pods at once]
+
+- Above Strategy is known as " Recreate Strategy".
+
+2.ROLLING UPDATE STRATEGY: [ DEFAULT]
+-------------------------------------
+- Bring Down 1 pod [ NGINX 1.2] & brings up 1 pod [NGINX 1.3 ] like for all pods.
+- no Down time & default Strategy
+
+NGINX 1.2  NGINX 1.2. NGINX1.2  =  NGINX1.3 NGINX1.3 NGINX1.3 [ all upgrade One by one ]
+
+NO DOWN TIME
+
+1.3.HOW YOU WILL UPDATE YOUR APP DEPLOYMENT:
+============================================
+
+1. Make a changes to deployment
+
+# kubectl apply -f deployment-definition.yaml
+
+ROLLOUT CREATE --------->> REVISION 2
+
+# kubectl set image deployment/app-deployment  nginx=nginx1.9.1.  [ NOT RECOMMENDED]
+
+Verify Rolling update or recreate:
+----------------------------------
+# kubectl describe deployments/myapp-deployment  strategy Type=Recreate/rollingupdate
+
+Deployment Upgrades:
+--------------------
+# kubectl apply -f deployment.yaml ----------RollOut
+
+Verify:
+-------
+# kubectl get replicas
+
+If some issues in current deployment = roll back tp previous app needed:
+------------------------------------------------------------------------
+# kubectl rollout undo  deployment/myapp-deployment
+
+Verify:
+-------
+#kubectl get replicas
+
+1.4.ALL CYCLE FOR APP UPDATE:
+===============================
+1.Create:
+---------
+# kubectl create -f  deployment-definition.yaml
+
+Verify:
+--------
+# kubectl get deployments
+
+
+2.Update:
+---------
+# kubectl apply -f deployment-def.yaml
+             Or
+# kubectl set image deployment/myapp. nginx=nginx1.3.9
+
+3.Status:
+---------
+# kubectl roll out status deployment/myapp
+
+4.RollBack:
+-----------
+# kubectl rollout history deploy/myapp
+
+# kubectl rollout  undo deployment/myapp
+
+==========================================================================================================================================================================================================
+2.COMMANDS & ARGUMENTS:
+========================
+
+- unlike virtual machines containers are not mean to host a OS.
+- containers are mean to run a specific task or process such as host a web server,appserver,database. Once the task is complete the container will exists.
+- The Container will live as long as task or process is alive. Inside the container is created then container exists.
+- so who who defines what process runs with in the container.
+
+Example:
+--------
+Commands should exist always in a container.
+
+# docker run ubuntu sleep 5( cmd ) ---------Container will run sleep command for 5 sec and then exist. 
+
+TIP DOCKERFILE:
+---------------
+FROM ubuntu
+CMD sleep 5
+CMD command paraml
+CMD [ "command","parm1"]
+CMD sleep5
+CMD ["sleep","5"] ---------run sleep cmd for 5 sec then exist.
+CMD ["sleep"] -------------entry point instruction
+
+# docker run ubuntu slipper 10 
+
+--->it taken by sleep cmd & exist sleep cmd for 10 sec.
+
+In K8's:
+--------
+Pod-definition with commands & arguments.yaml
+-------------------------------------------------
+apiVersion: v1
+kind: Pod
+metadata:
+  name: command-demo
+  labels:
+    purpose: demonstrate-command
+spec:
+  containers:
+  - name: command-demo-container
+    image: debian
+    command: ["printenv"]
+    args: ["HOSTNAME", "KUBERNETES_PORT"]
+  restartPolicy: OnFailure
+------------------------------------------------
+Create:
+--------
+# kubectl create -f Pod-definition with commands & arguments.yaml
+
+==========================================================================================================================================================================================================
+3.CONFIG ENVIRONMENT VARIABLES:
+================================
+Cli : docker run -e APP_COLOUR=pink Simple-webapp-color
+---------------------------------------------------------
+Pod-definitionwith environmentalvariables.yaml
+-----------------------------------------------
+piVersion: v1
+kind: Pod
+metadata:
+  name: envar-demo
+  labels:
+    purpose: demonstrate-envars
+spec:
+  containers:
+  - name: envar-demo-container
+    image: gcr.io/google-samples/node-hello:1.0
+    env:
+    - name: DEMO_GREETING
+      value: "Hello from the environment"
+    - name: DEMO_FAREWELL
+      value: "Such a sweet sorrow"
+---------------------------------------------------------------
+==========================================================================================================================================================================================================
+4.CONFIG MAPS:
+==============
+- Many large no of env config data using config maps.
+- ConfigMaps are used to pass the configdata in to the form of key value pair in k8's.
+- when a pod is created inject config map into the pod then key value pairs are available as a env variable to the apps hosted inside in config maps.
+
+Two Phases involved in config Maps
+
+1.create config Maps.
+2. Inject them into the pod.
+
+-2 ways to create config map= imperative / declarative
+
+Declarative:
+=============
+1.Create Config Map:
+--------------------
+Config-map.yaml
+
+apinversion:V1
+Kind: configMap
+Metadata:
+    Name: app-config
+Data:
+
+ APP_COLOR: blue
+ APP_MODE: prod
+
+# kubectl create -f config-map.yaml
+
+# kubectl get configmaps
+# kubectl describe configmaps
+
+2.Inject Config Map to pod:
+---------------------------
+Pod.yaml
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: app-config
+spec:
+  containers:
+  - name: envar-demo-container
+    image: gcr.io/google-samples/node-hello:1.0
+   EnvFrom:
+     - ConfigMapref:
+             Name: app-config
+
+==========================================================================================================================================================================================================
+5.SCREATS:
+===========
+- To encrypt sensitive info like username/passwd
+- Two steps involved  to work with screats
+  1.Create Screats
+  2.Inject it into pods.
+
+1.Create Screats:
+------------------
+------------------------------------------------------------------------------------
+Screats.yaml
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: secret-sa-sample
+  annotations:
+    kubernetes.io/service-account.name: "sa-name"
+type: kubernetes.io/service-account-token
+data:
+  # You can include additional key value pairs as you do with Opaque Secrets
+  extra: YmFyCg==
+-------------------------------------------------------------------------------------
+Create:
+-------
+# kubectl create -f screats.yaml
+
+Verify:
+------
+# kubectl describe screats 
+
+# kubectl get screats
+
+View:
+------
+# kubectl get screat script-name -o yaml 
+
+
+How to Decode:
+---------------
+# echo -n 'ymFyCg=' | base64 --decode
+
+
+2.Inject pods:
+---------------
+apiVersion: v1
+kind: Pod
+metadata:
+  name: mypod
+spec:
+  containers:
+  - name: mypod
+    image: redis
+    volumeMounts:
+    - name: foo
+      mountPath: "/etc/foo"
+      readOnly: true
+    Envform:
+     - secretRef:
+          Name: app-config
+  volumes:
+  - name: foo
+    secret:
+      secretName: mysecret
+--------------------------------------------------------------------------------
+
+==========================================================================================================================================================================================================
