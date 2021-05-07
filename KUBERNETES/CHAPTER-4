@@ -1,0 +1,54 @@
+==========================================================================================================================================================================================================
+CHAPTER-4:LOGGING & MONITORING:
+==========================================================================================================================================================================================================
+1.Monitoring a Kubernetes components:
+=====================================
+- How to Monitor & What to Monitor like
+- such as no of nodes how many are healthy & performance metrics like- N/W,CPU,RAM,DISK utilisation.
+- pod level metrics such as no o pods, performance Metrics of each pod such as CPU & Memory usage.
+- We need a solution to monitor all above & store all logs
+- k8's doesn't comes with build in logging feature solution
+- no of open resources available.
+
+# Metrics Server, DATA DOG, Promrthes, Elastic Stack, Dynatrace.
+- Metrics Server is used as generic monitor solution.
+- in memory solution can't store historic data.
+
+2.How Monitoring Solution Works:
+================================
+- K8's runs on each node kubernetes & its responsible for receiving instructions from kubernetes api-server from master node & running pods on nodes.
+- kubelet also have "cadvisor" component or "container advisor" its responsible for receiving performance metrics from pods & exposing  them to kubelet api to metrics available to metrics server.
+
+To Enable metrics:
+-------------------
+Minikube:
+---------
+Minikube addons enable metrics-server
+
+Others:
+-------
+#Download Libraries from GitHub------Download & Install
+
+NodeMetrics:
+------------
+# kubectl top NodeName
+
+Pod Metrics:
+------------
+# kubectl top pods
+
+2.Managing Application Logs:
+============================
+# docker run kodekloud/event simulator.
+
+To view container Logs:
+------------------------
+# docker logs -f <CID>  -----To view logs
+
+K8's:
+-----
+# kubectl create -f event-simulator-pod
+# kubectl logs -f event-simulator-pod. ------To view pod logs
+# kubectl logs -f podsnginx/redis.      ------To view logs of container.
+
+==========================================================================================================================================================================================================
