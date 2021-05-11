@@ -1,0 +1,184 @@
+===================================================================================================================================================================================================================================================================
+CINDER OPENSTACK BLOCK STORAGE SERVICE:
+===================================================================================================================================================================================================================================================================
+1.Verify cinder services:
+--------------------------
+# lxc-attach --name $(lxc-ls -l | grep util)
+# source openrc
+# cinder service-list 
+==============================================================================================================================================================================================
+2.Create Volumes:
+-----------------
+1.Create volumes:
+
+# openstack volume create --size 10 --description "volume description"  <VOLUMENAME>
+
+2.Create volumes with multi attach: to use volume as shared storage 
+
+# openstack volume create --multi-attach  --size 10 --description "volume description"  <VOLUMENAME>
+
+3.Verify:
+
+login to storage host where cinder services are running you can see the actual volumes.
+
+# lvdisplay cinder-volume   ----to check volumes in cinder storage 
+
+==========================================================================================================================================================================================================
+3.Attaching Volumes to an Instance:
+-----------------------------------
+1.server list:
+--------------
+# openstack server list -c Name -c ID -f table
+
+2.List Available Volumes:
+--------------------------
+# openstack volume list 
+
+3.attach volume to the instance:
+--------------------------------
+# openstack server add volume <Instance_Name>  <VolumeName>  --device  /dev/vdc
+
+4.now perform actions inside our running instances login to instance and verify the volume is attached now:
+------------------------------------------------------------------------------------------------------------
+
+# lsblk
+
+5.u should see 10GB of volume now make it usable:
+-------------------------------------------------
+# mkfs.ext4  /dev/vdb
+
+# mkdir /mnt1
+
+# mount /dev/vdb /mnt1
+
+7.Verify Mounted or not:
+------------------------
+# df -h
+=======================================================================================================================================================================================================================================
+4.Detaching Volumes from an Instance:
+--------------------------------------
+1.list running instances to get the ID of our Instances :
+----------------------------------------------------------
+# openstack  server list 
+
+2.List the Volume that are available and in-use in our environment
+
+# openstack volume list 
+
+3.now we need to perform actions inside the running instance. connect to this instance and verify that the volume is mounted.
+
+# df -h
+
+4.now umount the /mnt volume.
+
+# sudo umount /mnt
+
+5.exit from instance and back to openstack client detach the volume from the instance :
+
+# openstack server remove volume Instance_Name VolumeName
+
+6.Verify:
+
+# openstack volume list
+
+=======================================================================================================================================================================================================================================================================
+5.Deleting Volumes:
+--------------------
+1.Volume list:
+--------------
+# openstack volume list 
+
+2.Delete Volumes:
+-----------------
+# openstack volume delete VolumeName
+
+===============================================================================================================================================================================================================================================================================================================
+6.Volume Snapshots:
+-------------------
+cinder volume snapshots provide a way to copy a volume as a volume backup.
+
+1.Create Snapshots:
+-------------------
+if volumes are in use state you will need to detach it using the instructions 
+
+# openstack volume list 
+
+as our volume is in correct state of available  we will proceed to create a snapshot of the volume.
+
+# openstack volume create snapshot create --volume  Volume_ID  Volume_snapshot_Name 
+
+2.once snapshot is complete you can reattach the original volume using the attaching volumes to an instance receipe in this chapter and continue operations.
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+3.if using snapshot as a part of an ongoing test/validation process or part of a backup scheme you may want to update the snapshot with fresh dats.
+----------------------------------------------------------------------------------------------------------------------------------------------------
+# openstack volume snapshot list -c ID -c Name -c Status -f table 
+
+# cinder snapshot-reset-state Snapshot_Name
+
+4.u r unable to use a snapshot directly to use a snapshot as a volume attach to an instance you need to first create the new volume based off this snapshot 
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+# openstack  volume create --snapshot Snapshot_Name NEW_Volume_Name
+
+5.Verify:
+---------
+# openstack volume list -c Name -c ID -c Status -f table
+
+6.Delete Snapshots:
+--------------------
+# openstack volume snapshot  delete  Snapshot_Name
+
+===============================================================================================================================================================================================================================================================================================================================
+7.Configure Volume Types:
+-------------------------
+volume types in cinder are a label or identifier that is selected during volume creation.
+volume types are correspond with some attributes of volume creation.
+for example: SSD,High IOPS, & Encrypted.
+
+1.first list existing volume types:
+-----------------------------------
+# openstack volume type list 
+
+2.Create the new volume type:
+-------------------------------
+# openstackvolume type create --description "the high iops volume type is QOS applied to 500 IOPS" "High Iops"
+
+3.Verify:
+---------
+#openstack volume type list 
+
+4.use this new volume type when creating a volume we will use the type flag:
+-----------------------------------------------------------------------------
+# openstack volume create --size 10 --type "High IOPS" --description  "High Iops Volume" VolumeName.
+
+5.Verify:
+---------
+#openstack volume list 
+
+=======================================================================================================================================================================================================================================================================================================================================
+8.Enabling Volume Encryption:
+-----------------------------
+Cinder can manage the encryption of volumes.
+encryption is enabled on a volume type level
+
+# openstack volume type create --description "LUKS Encrypted Volume" --encryption-provider  NameofEncryptor --encryption-control-location front-end 
+  --encryption-key-size  256  --encryption-cipher aes-xts-plain64  "Encrypted"
+  
+========================================================================================================================================================================================================================================================================================================================================================
+9.Resetting Volume State:
+--------------------------
+during on going operation of ur openstack cloud u will occationally encounter trouble where a cinder volume will get stuck in an odd state.
+
+1.check cinder volume status:
+-----------------------------
+# openstack volume list -c Name -c Status -f table 
+
+2.cinder client to reset the state of volumes:
+-----------------------------------------------
+#cinder reset-state  VolumeID  --state  available 
+
+3.confirm the new status:
+-------------------------
+
+# openstack volume reset list -c Name -c Status -f table 
+
+===================================================================================================================================================================================================================================================================================================================================================================
