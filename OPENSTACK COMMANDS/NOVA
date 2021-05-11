@@ -1,0 +1,469 @@
+==================================================================================================================================================================================================================================================
+NOVA OPENSTACK COMPUTE SERVICE:
+==================================================================================================================================================================================================================================================
+Nova is the openstack compute service and its core of opensatck cloud. it is desighned to manage and automate pools of compute resources and 
+work with a variety of existing virtualization technologies
+
+1.OPENSTACK COMPUTE SERVICE:
+=============================
+The Nova Service is the heart of the OpenStack Cloud. It is a collection od daemons that works toOrchestrate availability of compute resourses, leverage virtualization features that been running
+on linux machines for years! Nova works with a variety of existing hypervisor technologies including QEMU-KVM,QEMu, Hyper-V, VMware ESXI, Xen and XenServer.
+it also supports the ability to leverage existing Linux Container technologies such as LXC and Docker. when one boots an instance, Nova leverage available CPU,Memory,Disk resourses on Compute Nodes.
+In Production Openstack Environment a customer may have anywhere from five to 5000 compute nodes hosting virtual machine instance.
+
+Nova Architecture:
+------------------
+Nova is made up of six daemons:
+
+1.Nova-Api:
+------------
+The Primary gateway to Nova. One Must interact with nova-api to create , list, delete, and manage instances.
+
+2.Nova-Scheduler:
+------------------
+Evaluates and filters all available compute hosts to determine the best compute node of an instance you'd like to boot.the behaviour of nova-scheduler can be modified based on specific 
+characteristics such as CPU Architecture.
+
+3.Nova-Conductor:
+-----------------
+A "database-broker" that directly connects to the OpenStack environments relational database. Because the compute node or hypervisor) is the least trusted component of multi tenant virtualized
+environment, all database communication goes through nova-conductor.
+
+4.Nova-Novncproxy:
+-------------------
+provides serial console access to Nova instances via a VNC client or WebBrowser.
+
+5.Nova-Consoleauth:
+-------------------
+receives requests from nova-novncproxy to authorize a users token and maps teh private host and port of an instances VNC Server
+
+6.Nova-Compute:
+---------------
+Manages Virtual Machines on the Hypervisor
+-Nova-API (port:8774)
+-Nova-novncproxy (port: 6080)
+========================================================================================================================================================================================================================================================================================================================
+2.Adding a Compute Host Using OPENSTACK-ANSIBLE:
+-------------------------------------------------
+Check in Documentation of cookbook.
+# opensatck hypervisor list -------------->
+====================================================================================================================================================================================================================================================================================
+3.SUSPENDING A COMPUTE HOST FOR MAINTENANCE:
+--------------------------------------------
+Some times host needs to be taken offline to have memory replacement or os upgrade or routine maintainence.
+to ensure running instances not affected.
+
+1.List all Available hosts:
+-----------------------------
+# opensatck service list -c Binary -c Host -c status -f table
+
+2.Disable service called nova-compute for the compute host for told to no longer place new instances onto the host :
+---------------------------------------------------------------------------------------------------------------------
+# opensatck compute service set --disable  <computename>  nova-compute 
+
+3.Verify by checking host is diable or not:
+-------------------------------------------
+# opensatck service list -c Binary -c Host -c status -f table
+
+4.Compute host has been disabled. we can migrate running instance on that host to another host:
+-----------------------------------------------------------------------------------------------
+# nova host-evacuate-live --block-migrate  <computename>
+
+=========================================================================================================================================================================================================================================================
+3.HOST_AGGREGATES:
+--------------------
+Configuring Nova Scheduler to use Host Aggregates:
+-----------------------------------------------------
+-opensatck compute provides the ability to create logical groupings of hypervisors called  "HOST AGGREGATES", which allow users to control what physical compute hosts can run
+ requested workload.
+-host aggregates are used to oraganize hosts with similar attributes, such as SSD,Performance or Hosts, that have passed a security audit such as HITRUST or PCI.
+-a host can be assighned to multiple aggregates.
+-To enable host aggregate scheduling in nova scheduler you must first enable host aggregate filtering in "nova-conf" 
+ 
+1.To Enable Host Aggregate: 
+----------------------------
+#lxc-attach --name Controller_Name_nova_scheduler_ContainerID.
+#lxc-ls -f
+
+enabled_filters = AggregateInstanceExtraFilter,RetryFilter,AvailabilityZoneFilter,RamFilter,ComputerCapabilitiesFilter,Imageproperties,ServerGroupAntiAffinityFilter,
+                  ServerGroupAffinityFilter,AggregateCoreFilter,AggregateDiskFilter  
+Verify:
+-------
+#lxc-attach --name Controller_Name_nova_scheduler_ContainerID.
+#lxc-ls -f
+#grep Aggregate /etc/nova/nova.conf
+
+once enabled when a new instance is requested the nova scheduler examines the metadata of the flavor associated with the request and attempts to match it with 
+the metadata of host aggregate.
+
+2.Creating Host Aggregate:
+--------------------------
+list current host aggregates:
+
+# opensatck aggregate list 
+
+Create Host Aggregate:
+
+# opensatck aggregate create  Host-Aggregate-Name
+
+Verify:
+
+# opensatck aggregate list 
+
+3.Adding a Compute hosts to a HostAggregate:
+---------------------------------------------
+Before using host-aggregates you have to add hosts to host-aggregates
+
+list hosts already in host-aggregate
+
+# opensatck aggregate show Host-Aggregate-Name
+
+add compute host to host-aggregate
+
+# opensatck aggregate add host Host-Aggregate-Name  Compute_Name
+
+Verify:
+# opensatck aggregate show Host-Aggregate-Name
+
+4.Removing a Compute hosts to a HostAggregate:
+---------------------------------------------
+list hosts already in host-aggregate
+
+# opensatck aggregate show Host-Aggregate-Name
+
+add compute host to host-aggregate
+
+# opensatck aggregate remove  host Host-Aggregate-Name  Compute_Name
+
+Verify:
+# opensatck aggregate show Host-Aggregate-Name
+
+5.Adding Metadata to HostAggregate:
+------------------------------------
+To use host aggregate based on properties
+we can create instances by matching the metadata of a host aggregate with that of an instance flavor 
+
+list hosts already in host-aggregate
+
+# opensatck aggregate show Host-Aggregate-Name
+
+add metadata to host-aggregate
+
+# opensatck aggregate set --property ssd=true Host-Aggregate-Name
+
+verify:
+# opensatck aggregate show Host-Aggregate-Name
+
+Create flavor using metadata properties of host-aggregate
+
+# opensatck flavor create --vcpus 1 --ram 512 --disk 5 --public Flavorname
+
+set properties to flavor:
+
+# nova flavor-key Flavorname set ssd=true
+
+6.Deleting HostAggregate:
+--------------------------
+list host-aggregate
+
+# opensatck aggregate list 
+
+confirm host-aggregate has no hosts
+
+# opensatck aggregate show Host-Aggregate-Name
+
+delete hostaggregate
+
+# opensatck aggregate delete  Host-Aggregate-Name
+
+Verify:
+
+list host-aggregate
+
+# opensatck aggregate list 
+
+====================================================================================================================================================================================================================================================================================================================================================
+4.AVAILABILITY ZONES:
+---------------------
+1.Creating an Availability Zone:
+--------------------------------
+AZ's are used by special case of case of host aggregates.
+AZ's are used to define failure domains, such as cabinet or data center.
+
+list AZ's
+
+# opensatck availability zone list 
+
+create a new aggregate with --zone parameter
+
+# opensatck aggregate create --zone  ZONE_NAME  aggregate-name
+
+add a compute host to aggregate 
+
+# opensatck aggregate add host ZONE_NAME Compute-Name
+
+Verify:
+
+# opensatck availability zone list 
+
+2.Booting an instance into an Availability Zone:
+------------------------------------------------
+Instances can be created into a given AZ by passing the --availability-zone as a part of creation processes
+
+Server Create:
+
+# opensatck server create --flavor FlavorName --image ImageName  --nic net-id=NetworkName --security-group  SecurityGroupName --key-name SSH-KEY-NAME 
+  --availability-zone  AZ_NAME  Instance_NAme 
+  
+3.Removing an Availability Zone:
+--------------------------------
+list:
+
+# opensatck availability zone list 
+
+list hosts with in AZ 
+
+# opensatck aggregate show AZ_NAME 
+
+remove the hosts from hostaggregate
+
+# opensatck aggregate remove host aggregate-name  compute-name 
+
+remove AZ
+
+# opensatck aggregate delete AZ_NAME
+
+Verify:
+
+# opensatck availability zone list 
+
+=================================================================================================================================================================================================================================================================================================================================================
+5.FLAVORS:
+----------
+nova will use flavours for a hardware resource associations to instance like vcpu,ram etc/nova/nova
+
+1.Create Flavors:
+------------------
+# opensatck flavor create --vcpus 1 --ram  512 --disk 5 --public flavorname 
+
+list:
+--------
+# openstack flavor list 
+
+Delete:
+---------
+# opensatck flavor delete FlavorName
+
+2.Setting CPU Limits for a Flavor:
+----------------------------------
+No of CPU's assighned to an instance, limits on the use of these CPU cycles can be futher imposed.
+The values u would like to set the CPU limit to ( share of the time the allocated CPU is allowd to consume in milliseconds per cycle)
+
+Example:
+
+cpu_quota=5000ms
+cpu_period=2500ms
+
+show:
+
+# openstack flavor show FlavorName
+
+add cpu limit:
+
+# opensatck flavor set  --property  quota:cpu_quota=5000 --property=cpu_period=2500 FlavorName
+
+show:
+
+# openstack flavor show FlavorName
+
+
+3.Setting IOPS limits to a Flavor:
+----------------------------------
+IOPS refers to the storage and network.
+
+set iops to flavor 
+
+# opensatck flavor set  --property quota:disk_read_iops=100 --property quota:disk_write_iops=100 FlavorName
+
+Verify:
+
+# opensatck flavor show  FlavorName
+
+=========================================================================================================================================================================================================================================================================================
+6.SERVER/INSTANCES:
+-------------------
+most tasks can be performed with instances are lyfe cycle tasks
+
+1.Booting an instance:
+-----------------------
+list instances
+--------------
+# openstack server list --long 
+
+list images
+-----------
+# opensatck image list 
+
+network list
+------------
+# opensatck network list 
+
+keypair list:
+--------------
+# opensatck keypair list 
+
+ServerCreate:
+-------------
+# opensatck server create --flavor FlavorName --image ImageName --nic net-id=Networkname --security-group  SGName --key-name SSH-KEY-NAME  Instance_NAME
+
+verify:
+-------
+# opensatck server list 
+# opensatck server show  Server-Name
+
+Stop Instances:
+---------------
+# opensatck server stop instancename
+
+shutdown/reboot:
+----------------
+# opensatck server shutdown/reboot  instancename
+
+Delete Instance:
+----------------
+
+# opensatck server delete  instancename
+
+=====================================================================================================================================================================================================================================================================================================================================================================
+7.Live Migration of Instance:
+------------------------------
+some times due to some HW maintainence or day to day maintainence or OS Upgrades some hosts needs to be taken offline but no downtime for instances
+
+Live migration  supports 2 methods
+-blockmigration for non shared storage instances
+-live migration for shared storage instances
+
+1.list Hypervisor:
+--------------------
+# opensatck hypervisor list 
+
+2.view instance properties:
+----------------------------
+# openstack server list 
+
+# openstack server show  InstanceName -c name -c OS-EXT-SRV-ATTR:hypervisor_hostname
+
+3.To live Migrate:
+-------------------
+To live migrate instance which is using no shared storage :
+
+# opensatck server migrate --block-migration InstanceName 
+
+To live migrate instance which is using  shared storage  like CEPH :
+
+# opensatck server migrate InstanceName --live INSTANCE_NAME
+
+4.Check the status of migration:
+---------------------------------
+# opensatck server show -c name -c OS-EXT-STS:task_state ServerName
+
+5.Verify the instance properties :
+-----------------------------------
+# openstack server list 
+
+# openstack server show  InstanceName -c name -c OS-EXT-SRV-ATTR:hypervisor_hostname
+
+=================================================================================================================================================================================================================================================================================================================================================================================
+8.SnapShotting an Instance:
+----------------------------
+snapshotting an instance will create a glance image of the instance at the point in the snapshot was taken.
+This image can be used to deploy additional instances of a given application. or bootable backup of instance.
+
+1.image list:
+-------------
+# opensatck image list -c name -c status 
+
+2.check running instances:
+--------------------------
+# opensatck server list -c Name -c Status 
+
+3.Create Snapshot of instance:
+------------------------------
+# opensatck server image create --name SnapShotName  InstanceName
+
+4.Verify:
+---------
+# opensatck image list 
+
+=============================================================================================================================================================================================================================================================================================================================================================================================
+9.Booting an instance from a SnapShot:
+--------------------------------------
+now u have snapshot created , imagine that u have to go back and recover files or revert the application to the state it was at the time of the snapshot was taken.
+
+1.list Servers:
+---------------
+# opensatck server list -c Name -c Status 
+
+2.Boot instance using snapshot:
+-------------------------------
+# opensatck server create --flavor FlavorName --image SNAPShotInstanceImage  --nic net-id=networkname --security-group SGNAME --key-name SSH-KEY-NAME INSTANCE_NAME
+
+3.Verify:
+---------
+# opensatck server list -c Name -c Status
+
+==========================================================================================================================================================================================================================================================================================================================================================================================================
+10.Rescuing an Instance:
+------------------------
+openstack compute provides a handy troubleshooting tool with rescue mode.
+should a user lost an sshkey or otherwise not be able to boot ans access an instance say bad iptables settings or failed network configs
+rescue mode will start a minimal instance and attach the disk from the failed instance to aid in recovery.
+this applies to both windows and linux instances as this process essentially allows the mounting of the boot volume of ur failed instance as a secondary disk to rescue the instance.
+
+1.put instance into rescue mode:
+--------------------------------
+# opensatck server rescue InstanceName 
+
+2.Verify server status:
+------------------------
+# opensatck server show InstanceName -c name -c status 
+
+3.At this point we can access instance using root username and temporary passwd is given to perform OS rescue commands on the mounted file system 
+
+4.To exir from rescue mode:
+---------------------------
+# opensatck server unrescue  InstanceName 
+
+==========================================================================================================================================================================================================================================================================================================================================================================================================================
+11.Shelving an Instance:
+------------------------
+shelving an instance:- shelving an instance allows u to stop server with out having it consumes the resources.
+
+1.status of instances:
+----------------------
+# opensatck server show  InstanceName -c name -c status 
+
+2.to Shelve instance:
+---------------------
+# opensatck server shelve InstanceName
+
+3..status of instances:
+----------------------
+# opensatck server show  InstanceName -c name -c status 
+
+4.to Shelve instance:
+---------------------
+# opensatck server unshelve InstanceName
+
+5.Verify:
+---------
+# opensatck server show InstanceName -c name -c address -c status 
+==============================================================================================================================================================================================================================================================================================================================================================================================
+12.Reviewing the console logs:
+------------------------------
+Console logs are critical for troubleshooting the startup process of an instance .these logs are produced at boottime. before console becomes available.
+while working with cloud hosted instances accessing this logs are difficult.openstack compute provides a mechanisam for accessing the console logs.
+
+# opensatck console log show --lines 5 InstanceName 
+
+======================================================================================================================================================================================================================================================================================================================================================================================================
