@@ -1,0 +1,134 @@
+==========================================================================================================================================================================================================
+HEAT OPENSTACK ORCHESTRATION SERVICE:
+==========================================================================================================================================================================================================
+1.Creating your First Stack:
+-----------------------------
+1.First we download the hot file from the cookbook github repository:
+
+# wget -o cookbook.yaml  https://raw.githubusercontent.com/openstackcookbook/openstackcookbook/master/cookbook.yaml
+
+2.Heat takes input parameters from the command line or from an environment file which get passed to the template.
+  these parameters are seen at the top of the HOT file.
+  
+parameters:
+
+  key_name:
+    type: string
+	description: Name of key_pair to assighn to servers
+  
+  image:
+    type: string
+	description: Name of the image to use for servers
+  
+  flavor:
+    type: string
+	description: Name of the flavor to use for servers
+  
+  public_net_id:
+    type: string
+	description: ID of public network for which floating ip addresses will be allocated
+
+  private_net_id:
+    type: string
+	description: ID of private network into which servers get deployed
+
+  private_subnet_id:
+    type: string
+	description: ID of private subnetwork into which servers get deployed
+ 
+3.as can be seen we expect to pass in various parameters when we launch this template. ensure that we have these details by running the below commands.
+
+# openstack keypair list 
+# openstack flavor list 
+# openstack network list 
+
+4.with the information in hand ,we create a environment file that will be used to store our parameters that we will pass to the HOT Files 
+  when we launch the stack.Create cookbook-env.yaml in the same directory as cookbook.yaml based on the output of the previous commands.
+
+parameters:
+
+ key_name: demokey
+ image: cirros
+ flavor: m1.tiny
+ public_net_id: XXXXXXXXXXXXXXXXXXXXXXXX
+ private_net_id: XXXXXXXXXXXXXXXXXXXXXXX
+ private_subnet_id: XXXXXXXXXXXXXXXXXXXXXXX
+ 
+==================================================================================================================================================================================================================
+2.Launching your stack with HEAT:
+===========================================
+1.launch stack using below command:
+
+#openstack stack create <StackName>  --template cookbook.yaml --environment  <cookbook-env.yaml>
+
+2.list stacks:
+
+# openstack stack list 
+
+3.show stacks:
+
+# openstack stack show  <stackName>
+
+============================================================================================================================================================================================================================
+3.Viewing the Resource and output of a stack created with Heat:
+================================================================
+1.you can view more details of a stack using the following command:
+-------------------------------------------------------------------
+#openstack stack show  <StackName>
+
+2.To see list of outputs associated with our running stack  using below command:
+--------------------------------------------------------------------------------
+#openstack stack output list <StackName>
+
+3.To view a particular value, such as the public IP (Floating IP) assighined to our HAProxy instance.
+------------------------------------------------------------------------------------------------------
+# openstack stack output show  <StackName>  haproxy_public_ip
+
+=====================================================================================================================================================================================================================================
+
+4.Deleting a Heat Stack:
+===========================
+1.delete stack using below command:
+-----------------------------------
+# openstack stack delete <stackName>
+
+2.you will be prompted to confirm this deletion as show here:
+---------------------------------------------------------------
+type "Y" to continue destroying the stack 
+
+# openstack stack delete <stackName>  -y
+3.Verify stack deleted or not:
+-------------------------------
+# openstack stack list 
+=============================================================================================================================================================================================================================================
+
+5.Updating a Heat Stack:
+===============================
+1.We first edit the environment file called cookbook-env.yaml,to show the changes we want to make to our running stack:
+------------------------------------------------------------------------------------------------------------------------
+
+parameters:
+
+ key_name: keyname
+ image: cirros 
+ flavor: m1.tiny -----change 
+ public_net_id: XXXXXXXXXXXXXXXXXXXXXXXXXX
+ private_net_id: XXXXXXXXXXXXXXXXXXXXXXXXXX
+ private_subnet_id: XXXXXXXXXXXXXXXXXXXXXXXX
+ 
+
+2.Ensure that the stack is running without issues by vieweing the resources:
+-----------------------------------------------------------------------------
+# openstack stack show  <Stack_Name>
+
+3.we will use the updated environment file to modify the running stack:
+------------------------------------------------------------------------
+# openstack stack update <Stack_Name>  --existing
+
+# openstack stack update nameofstack --environment updateEnvironmentfile.yaml  --template originalstacktemplate.yml 
+
+4.Ensure that the stack is running without issues by vieweing the resources:
+-----------------------------------------------------------------------------
+# openstack stack show  <Stack_Name>
+
+======================================================================================================================================================================================================
