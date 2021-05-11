@@ -1,0 +1,985 @@
+==========================================================================================================================================================================================================
+LESSON:1: LXC CONCEPTS:
+==========================================================================================================================================================================================================
+1.What Are Linux Containers?
+
+Container Rundown:
+------------------
+• Containers are isolated execution environments • Shared kernel with isolated resources
+• Often compared to virtual machines:
+• Isolation feels like virtual machine
+• Less resources than virtual machine
+• Isolation (containers) versus virtualization (VMs)
+
+Linux Containers:
+------------------
+• LXC is short for Linux Containers
+• Operating-system-level virtualization for Linux systems • Leverages cgroups via the Linux kernel:
+• Prioritization of resources: CPU,Memory, I/O, Network
+• Share kernel
+• Namespace isolation
+  • lxc- commands
+
+Linux Container Daemon:
+-----------------------
+• The daemon on the host that accepts API calls for LXC
+• LXC manages the container and LXD manages the remote -- image/container servers • Extends LXC functionality
+• Allows for easier migration, publishing
+• lxc command
+
+LXC vs. Docker:
+----------------
+Infrastructure vs. Application Containers:
+-------------------------------------------
+• Infrastructure, or system, containers function similarly to virtual machines: • Work as an isolated OS environment
+• Generally used alongside traditional configuration management
+• Are upgraded, maintained
+• Application containers are stateless and ephemeral and provide a platform-agnostic space for an application component:
+• Replaced, not upgraded
+• Portable, used with microservices
+
+LXC, LXD, and Docker:
+----------------------
+• LXC/LXD intended as system containers: • Long-running applications
+• Linux-only
+• Manages:
+  Kernel namespaces
+  Apparmor/SELinux Profiles
+  chroots
+  Anything in the kernel/operating system
+• Docker is more often used for application containers:
+• For creating a lot of containers fast
+• Linux, Windows, OS X
+• Self-contained file system, not base userspace image • App + image:
+  Dockerfile
+
+Use Cases:
+----------
+• Fast-deploying developing environments without the performance hit • Access to bare metal through the kernel
+• Instances where the operating system matters:
+• LAMP Stacks • Databases
+
+==========================================================================================================================================================================================================LESSON:2: SETUP:
+==========================================================================================================================================================================================================
+1.LXC/LXD Installation:
+------------------------
+In this course, we'll be focusing using the latest release of LXD on Ubuntu 18.04 LTS. Once installed, notice that LXD is actually already installed on the host:
+
+# lxc --version
+
+However, you'll find that should we try to access LXC directly, we cannot:
+
+# lxc-create --version
+
+This is because while LXD is still using the underlying LXC, Ubuntu/Debian-based distros obfuscate LXC commands.
+To use LXC directly, we'll instead need to install the lxc-utils package:
+
+# sudo apt install lxc-utils
+# lxc-create --version
+> 3.0.3
+
+LXD, in contrast, is installed the same on all Linux distributions, through the distro-agnostic snaps which use the Snap package manager. 
+This is on our Ubuntu host by default, but can be installed via the snapd package on most package managers. Note that if installing snapd 
+on a system, a systemctl start snapd will also need to be run.
+
+We now have the option to install either the most recent version with snapp install xd, or use one of the two LTS versions. For the sake 
+of keeping everyone taking this course on the same page, we'll be using the LXD 3.0 LTS:
+
+# sudo snap install lxd --channel=3.0/stable
+> lxd 3.04 from Canonical? installed
+
+But what happens if we check the version of LXD we're using now?
+
+# lxc --version
+> 3.0.3
+
+We're still using the original LXD that came installed via the default repositories. We can fix this by removing it:
+
+# sudo apt remove lxd lxd-client
+
+Next, add the cloud_user to the lxd group:
+
+# sudo usermod cloud_user -aG lxd
+
+Then log out and back in to refresh the session. We're now working with the appropriate version of LXD:
+
+# lxc --version
+> 3.04
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+2.LXD INITIALIZATION:
+----------------------
+With LXD installed, we now need to finish the set up by configuring LXD itself. Luckily, there's a simple solution for this in the form of a single command: 
+
+#lxd init.
+
+lxd init will give a series of prompts about our configuration, asking us whether we want to enable clustering, create or define the storage pools, 
+set up any bare metal connections, define networking attributes, enable auto-updates for caches images, and output a preseed file.
+
+An example configuration might look like the output below:
+
+##################################################################################################
+Would you like to use LXD clustering? (yes/no) [default=no]: no
+Do you want to configure a new storage pool? (yes/no) [default=yes]: yes
+Name of the new storage pool [default=default]: default
+Name of the storage backend to use (btrfs, ceph, dir, lvm, zfs) [default=zfs]: zfs
+Create a new ZFS pool? (yes/no) [default=yes]: yes
+Would you like to use an existing block device? (yes/no) [default=no]: no
+Size in GB of the new loop device (1GB minimum) [default=15GB]: 15GB
+Would you like to connect to a MAAS server? (yes/no) [default=no]: no
+Would you like to create a new local network bridge? (yes/no) [default=yes]:
+What should the new bridge be called? [default=lxdbr0]:
+What IPv4 address should be used? (CIDR subnet notation, “auto” or “none”) [default=auto]:
+What IPv6 address should be used? (CIDR subnet notation, “auto” or “none”) [default=auto]:
+Would you like LXD to be available over the network? (yes/no) [default=no]:
+Would you like stale cached images to be updated automatically? (yes/no) [default=yes]
+Would you like a YAML "lxd init" preseed to be printed? (yes/no) [default=no]: yes
+###################################################################################################
+
+Preseed:
+---------
+
+If we're going to be using LXD in a cluster, or in any circumstance where you'll want to reuse this configuration, 
+we can generate a preseed file for use on other servers (or even on the current one a second time). This a simple 
+YAML file we can feed into the lxd init command.
+
+This YAML version of the above configuration looks like this:
+##############################################################################################################################
+config: {}
+networks:
+- config:
+    ipv4.address: auto
+    ipv6.address: auto
+  description: ""
+  managed: false
+  name: lxdbr0
+  type: ""
+storage_pools:
+- config:
+    size: 1GB
+  description: ""
+  name: default
+  driver: zfs
+profiles:
+- config: {}
+  description: ""
+  devices:
+    eth0:
+      name: eth0
+      nictype: bridged
+      parent: lxdbr0
+      type: nic
+    root:
+      path: /
+      pool: default
+      type: disk
+  name: default
+cluster: null
+##############################################################################################################################
+Save this to a file, such as preseed.yaml in the cloud_user's home directory. We can then use that file to skip the prompts and automatically configure LXD:
+
+# cat /path/to/preseed.yaml | lxd init --preseed
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+3.Storage Backends:
+--------------------
+In our previous lesson, we created our default storage pool using the suggested ZFS backend and default values. While this is an acceptable 
+way to create a backend for non-production usage, it leverages a loop device on the local partition. For production environments, LXD prefers 
+to have a full disk or partition to itself for increased stability.
+
+Luckily, LXD lets us create multiple pools to store our images and containers. Before we do this, however, let's add another storage device 
+to our playground server.
+
+From the Linux Academy Dashboard, select the Playground and select the three vertical dots next to your LXD host. Of the provided options, 
+select Add /dev/nvme1n1 to create the 2GB block on the host.
+
+Back on the command line, we can check that was added via the lsblk command:
+
+# lsblk
+> nvme1n1     259:2    0     2G  0 disk
+
+Next we need to create another pool, which is as simple as rerunning the lxd init command:
+
+# lxd init
+
+Do not use cluster, and type yes to configure a new pool. Let's call it our production pool. This time, however, when prompted for the backend, 
+let's really consider our options: While ZFS is the default, we can also use, btrfs, Ceph, LVM, or simply store directly on the local filesystem 
+without a loop device being created.
+
+Of these options, ZFS and btrfs are the recommended choices, with btrfs only suggested in instances where the more-stable ZFS is unavailable. 
+Let's select zfs again. Create a new ZFS pool, then when asked Would you like to use an existing block device?, type yes.
+
+From here we need to supply the path of our 2GB device: /dev/nvme1n1.
+
+To finish, do not connect to a MAAS server, or create a new network bridge. Instead connect to the lxdbr0 bridge we created before. Do not make LXD
+ available over the network, allow updates, and print the preseed configuration.
+
+Notice the differences in the YAML output between this and the previous preseed:
+
+###################################################################################################
+- config:
+    source: /dev/nvme1n1
+  description: ""
+  name: production
+  driver: zfs
+
+...
+
+    root:
+      path: /
+      pool: production
+      type: disk
+##################################################################################################
+Were we to manually update our preseed file to create a storage pool, these are the options we would want to provide, 
+each analogous to one of the questions we were asked in the prompt above.
+
+Alternatively, we can also create a storage pool through the lxd storage command. 
+Add /dev/nvme2n1 from the Linux Academy Playground dashboard (same as before).
+Let's now create a btrfs disk:
+
+# lxc storage create experimental btrfs source=/dev/nvme2n1
+
+Make experimental the pool name, btrfs the backend, and source=/dev/nvme2n1 the block device we just added.
+
+To confirm this was successful, we can view our list of available pools with this:
+
+# lxc storage list
+
+To see more information about any of these pools, just use the lxc storage info command:
+
+# lxc storage info experimental
+
+But what if we want to alter our setup? For example, let's remove our production pool and see what happens:
+
+# lxc storage delete production
+
+We receive an error! By using lxd init to provision this pool, we forced it to essentially work as the "default" pool.
+
+Let's try to fix this by updating the storage pool configuration itself:
+
+# lxc storage edit production
+
+Now let's replace the used_by line to contain an empty set:
+
+used_by: []
+Save and exit. However, should we view this configuration again, nothing changed. This is because we need to set this profile-side, not as part of our storage configuration:
+
+# lxc storage show production
+
+# lxc profile device add default root disk path=/ pool=default
+
+We can now go ahead and remove the production pool:
+
+# lxc storage delete production
+
+Confirm by viewing the available storage pools:
+
+# lxc storage list
+
+==========================================================================================================================================================================================================
+LESSON:3: USING LXD:
+==========================================================================================================================================================================================================
+1.ILaunching Our First Container:
+----------------------------------------
+At this point, we have LXD up and running, and a bit more full-featured than we would normally consider making a dev environment.
+So let's go ahead and launch our first container. We don't need to download anything special or set up any configuration files. 
+If we just want a blank container, we can simply do a:
+
+# lxc launch images:alpine/3.10 -s default
+
+And as we can see, this creates a randomly-named container. Let's break down what we actually told LXD to do, however. 
+The lxc launch command is a bit self-explanatory -- it tells LXD to launch a container. The next portion, 
+images:alpine/3.10 defines which image we want to base our container on. The images: sets the remote, 
+in this case the Linux Containers official image repository, while alpine is the operating system and 3.10 
+the OS version. -s defines which of our storage blocks we want to use.
+
+This image launched fairly quickly. But when we ran the command, LXD pulled the image down from the remote, and made a local cache of it. 
+That cache is then used to create our container, before, finally, the container is launched.
+
+Once the image is cached, we can use it repeatedly for our other containers. Often this means quicker deploy times, although it's not always 
+as noticeable with small distros such as Alpine. Let's pull down an Ubuntu image to compare.
+
+For this, we're going to use the lxc image copy command. We'll specify our image (ubuntu:18.04 from Canonical's official Ubuntu remote), 
+then define which remote we want to copy the image to. In our case, we want it on our localhost, so we'll define local:. Finally, let's 
+give it a name so we won't be referencing the remote every time:
+
+
+# lxc image copy ubuntu:18.04 local: --alias ubuntu-18.04
+
+# lxc launch ubuntu-18.04 web01
+
+We now have a few containers up and running that we can work with as we progress through the course. 
+We can view a list of our new containers at:
+
+# lxc list
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------2.Instance Configuration:
+-------------------------
+n the "Storage Backends" lessons we briefly noted how with LXD, commands often mirror each other. If we want to view or alter our container configurations 
+after launch, we only have to use a few familiar-looking commands.
+
+As with our storage pools, we can view a YAML-based configuration for any container using the show command. This time, we're appending it to lxc config:
+
+# lxc config show web01
+
+We can also bring up this same configuration in our default editor:
+
+# lxc config edit web01
+
+A select few options can also be configured directly from the CLI. These options include boot settings set around autostart times and priority, environmental 
+and user key-value pairs for inside the container environment, hardware limits and prioritization, graphics card configurations, security policies for AppArmor 
+or SELinux, as well as raw configurations for AppArmor, LXC, ipmap, QEMU, and seccomp. For example, let's prevent our test container from starting at boot:
+
+# lxc config set <randomized-instance-name> boot.autostart false
+
+We can confirm the change by running:
+
+# lxc config get <randomized-instance-name> boot.autostart
+
+
+Finally, should we want to configure the physical disk space used by our containers, we'll want to instead use the lxc config device option.
+ As with storage and general config commands, this uses list, get, show, set, and unset commands. We can all add disks. In 3.0 LTS, this command 
+is somewhat limited, however, and we can't switch storage pools as we can in newer versions.
+
+Let's instead view our disk for the \<randomized-instance-name\> container:
+
+# lxc config device list <randomized-instance-name>
+
+We can also go a step further and get specific configuration values:
+
+# lxc config device get <randomized-instance-name> root pool
+
+Notice how we include the device name (root) along with the container information.
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------3.Accessing a Container:
+-------------------------
+Now that we have our containers up and running, we most likely need to start to configure them to suit our needs. We have a few straightforward options for this: 
+either sending commands to the container through our LXD server's CLI or accessing the container itself.
+
+As an example, let's make sure our web01 container is up to date. Ubuntu uses Bash as its shell by default, so to access our container we'll need to use the 
+
+# lxc exec command and specify the shell:
+
+# lxc exec web01 -- /bin/bash
+
+Notice how we're dropped in as root. We can then run commands as we would in any other shell:
+
+# apt update -y && apt upgrade -y
+
+# exit
+
+Note, however, that this does require a basic familiarity with the distribution being used. For example, should we try to run that above LXC command on our 
+"aqua-fish" instance, it won't drop us into a server, or do anything at all:
+
+# lxc exec <aqua-fish> -- /bin/bash
+
+This is because Alpine Linux doesn't use Bash. Instead, it uses ash:
+
+# lxc exec <aqua-fish> -- ash
+
+Let's update our container while we're here:
+
+# apk update
+# exit
+
+We're not just limited using lxc exec as a method of dropping into a container, however. Should we need to run a one-off command, we can do so directly:
+
+# lxc exec <aqua-fish> -- apk add vim
+
+Do note, however, that chaining commands with && or | operands does take some small tweaking of the command. For example, since web01 is intended to work as a web server, 
+let's go ahead and add nginx, then start and enable the service:
+
+# lxc exec web01 -- apt install nginx -y
+# lxc exec web01 -- systemctl start nginx && systemctl enable nginx
+
+systemctl enable nginx fails, as it is run against our LXD host server, not within the container itself. However, if we try to fix this by running the command in quotes, it still fails:
+
+# lxc exec web01 -- "systemctl start nginx && systemctl enable nginx"
+# lxc exec web01 -- 'systemctl start nginx && systemctl enable nginx'
+
+Instead, we need to include the sh -c command and flag before our chained commands:
+
+# lxc exec web01 -- sh -c 'systemctl start nginx && systemctl enable nginx'
+
+At this point, we should be able to run any command on our containers as we would on a virtual machine or bare metal server -- either through lxc exec directly 
+or by leveraging that same command to drop into a root shell.
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+5.Working with Files:
+----------------------
+When configuring any server, being able to run commands is only part of the picture. We also need to be able to update and add files. While we could do this 
+by dropping into a shell on our container and working, but LXD also offers us some more streamlined options for working with files on our containers.
+
+Let's go ahead and set up our web01 web server a bit more. We'll first look at the default site configuration:
+
+# lxc file edit web01/etc/nginx/sites-available/default
+
+We'll want to base our actual server configuration on this. Let's save and exit. We can then use the file pull command to create a 
+local file of this configuration.
+
+# mkdir web-server-configs
+
+# lxc file pull web01/etc/nginx/sites-available/default web-server-configs/containerhub
+
+# ls web-server-configs
+
+Let's now update this with our desired configuration:
+-----------------------------------------------------------------------------------------
+vim web-server-configs/containerhub
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+
+    root /var/www/html;
+
+    index index.html index.htm index.nginx-debian.html;
+
+    server_name ellejaclyn2c.mylabserver.com;
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+}
+------------------------------------------------------------------------------------------
+Save and exit. We can then use a lxc file push to add it to the sites-available directory:
+
+# lxc file push web-server-configs/containerhub web01/etc/nginx/sites-available/containerhub
+
+Let's now replace default with containerhub as our enabled site, starting with using lxc file delete to remove the original symlinked file:
+
+# lxc file delete web01/etc/nginx/sites-enabled/default
+
+Then use the exec command to symlink the new configuration and restart nginx:
+
+# lxc exec web01 -- ln -s /etc/nginx/sites-available/containerhub /etc/nginx/sites-enabled/containerhub
+# lxc exec web01 -- systemctl restart nginx
+
+To confirm all of this works, we can get some instant feedback by creating an index.html file and pushing to the web server:
+
+vim web-server-configs/index.html
+
+Server testing successful
+
+# lxc file push web-server-configs/index.html web01/var/www/html/index.html
+
+We can then pull the IP address of our container from a lxd list command, and curl the new index page:
+
+# lxc list
+# curl <web01-ip-address>
+Success!
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+6.Networking:
+-------------
+In our previous lesson, we used curl to view the test index page for our web server, making it evident that our containers contain some sort of networking. As we can see when we use the lxc list command, each container is assigned an IPv4 and IPv6 address:
+
+# lxc list 
+
+This address is associated with that lxdbr0 interface we created when we ran lxd init. Notice that when we view our list of networks, the inet value for the lxcbr0 bridge matches our container's IPv4 address:
+
+# ip addr
+
+And as we know, we can curl our container's IP from the host:
+
+# curl <web01-ip>
+
+This is through that lxdbr0 bridge, which in turn is connected to a veth pair on the host itself. We only have to scroll down a little in our ip addr command to see something that resembles this:
+
+# ip addr
+...
+8: vethBTBQH6@if7: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue master lxdbr0 state UP group default qlen 1000
+
+The other side of this veth pair connects to the eth0 virtual ethernet card on the container itself:
+
+# lxc exec web01 -- /bin/bash
+
+# ip addr
+
+
+Now should we create an additional container:
+
+exit
+# lxc image copy images:alpine/3.10 local: --alias alpine3.10
+# lxc launch alpine3.10 db01
+
+The new container will be able to communicate with the old, and the old with the new. We can check this just by accessing either of the containers and trying to ping or curl the other.
+
+Let's retrieve our db01 container's IP address and confirm:
+
+# lxc info db01
+# lxc exec web01 -- /bin/bin
+# ping <db01-ip>
+
+Although LXD actually offers us some more advanced networking in this regard, we actually didn't need db01's IP address at all. We could have used it's name, and the containers are able to communicate:
+
+ping db01
+
+exit
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+7.Profiles:
+-----------
+When we create a container, where and how it's created and configured is dependent upon its profile. Up until now, we've been using the default profile to assign the storage pool, network, and other information to our containers:
+
+# lxc profile list
+# lxc profile show default
+
+But we can create specialized profiles to suit our needs. Let's return to the idea of testing out zfs system again. We'll need to very remove the old partitions on /dev/nvme1n1 before we can continue:
+
+# sudo gdisk /dev/nvme1n1
+
+
+Command (? for help): x
+
+# Expert command (? for help): z
+ About to wipe out GPT on /dev/nvme1n1. Proceed? (Y/N): y
+
+And then create a new storage pool:
+
+# lxc storage create zfs-test zfs source=/dev/nvme1n1
+
+From here, we can use the default profile as a base by creating our zfs-test storage pool via the copy command:
+
+# lxc profile copy default zfs-test
+
+Let's now update our new profile to use the appropriate storage pool:
+
+# lxc profile edit zfs-test
+root:
+path: /
+pool: zfs-test
+type: disk
+
+Now let's launch a new container based on this profile:
+
+# lxc launch alpine3.10 test2 -p zfs-test
+
+We're not just limited to the existing configurations presented in the default profile, however. Remember our "Instance Configuration" lesson? T
+hose same values can be used here, in the profile. We can also set them in similar ways. For example, we can make a quick web profile in only a few commands:
+
+# lxc profile copy default web
+# lxc profile set web boot.autostart.priority 50
+# lxc profile set web boot.stop.priority 50
+# lxc profile set web environment.EDITOR vim
+
+To add the profile to our container, we can just use:
+
+# lxc profile add web01 web
+
+Let's also remove the existing default profile from our web01 container:
+
+# lxc profile remove web01 default
+
+As you may have guessed by now, many of the lxc profile commands follow the same conventions as storage and config. Remember, should we ever need 
+a refresher, we can view a full list with:
+
+# lxc profile --help
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+8.Snapshots:
+------------
+Rarely when working with containers are we working with one-off, individualized configurations. One of the benefits of containers, 
+after all, is the ability to launch many of them very quickly. We don't want these to be stock, unconfigured containers, however. 
+And while we can enroll our containers in a configuration management system, we are more likely to launch our containers based on 
+preconfigured images. These preconfigured images, in turn, are generally created from a configured container.
+
+For example, our web01 container is set up to work with nginx, and will undoubtedly be part of a greater web cluster. We can create 
+a snapshot of this configuration from which to base web02 container. Snapshots can use any naming convention you desire, but I like
+to keep to version numbers. So let's say this snapshot is version 1.0 of our container:
+
+# lxc snapshot web01 1.0
+
+To confirm, we can use the lxc info command, which lists all snapshots associated with the defined container:
+
+# lxc info web01
+
+We can now create a duplicate of this container with lxc copy:
+
+# lxc copy web01/1.0 web02
+
+We could also use cp in place of copy.
+
+Notice, however, when we view our current list of containers, that our new web02 container exists, but is not automatically started. We can remedy this with a lxc start:
+
+# lxc list
+# lxc start web02
+
+Finally, we can remove any unneeded snapshots with the lxc delete command, the same command we use to remove containers themselves. Instead of listing only the container name, however, we'll list the name and version in the same format we used when copying the snapshot:
+
+# lxc snapshot web02 1.0
+# lxc delete web02/1.0
+
+==========================================================================================================================================================================================================
+IMAGES:
+==========================================================================================================================================================================================================
+1.REMOTE IMAGES:
+-----------------
+At this point, we've touched on the concept of image remotes a number of times in this course — we know that our Alpine images come from images.linuxcontainers.org, 
+for example, and Canonical offers a similar remote for its own releases.
+
+What we don't (unnecessarily) know is that LXD works as a remote itself. Consider the copy command: lxd copy images:alpine/3.11 local:. Notice the local: 
+value at the end — this isn't just a general signal for our localhost, but is specifically referencing the local: LXD remote that was automatically created
+ during the LXD initialization process.
+
+We can see a list of remotes, including this one, with:
+
+# lxc remote list
+
+Notice the images and ubuntu remotes previously mentioned, as well as an ubuntu-daily remote that publishes a daily Ubuntu build. We can also see that these are public 
+remotes provided via the SimpleStreams protocol, versus our private, local remote hosted by LXD itself.
+
+Of course, we are not just limited only to our local: remote. Any LXD server can become a remote and work alongside other LXD servers. And since our current server is
+working perfectly fine as an LXD dev environment, let's instead consider leveraging a new server to work as an LXD remote — presumably for a larger fleet of LXD servers
+(dev, prod, or otherwise).
+
+From here, you'll want to spin up another Ubuntu 18.04 server on the Cloud Playground in preparation, then move on to the next lesson.
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+2.Creating a Remote:
+---------------------
+We'll be using a fresh Ubuntu 18.04 server as our remote. The initial configuration remains the same 
+as it was for our current server. Install LXD 3.0 stable:
+
+sudo apt remove lxd lxd-client -y
+sudo snap install lxd --channel=3.0/stable
+sudo usermod cloud_user -aG lxd
+
+And initialize:
+
+# lxd init
+
+We especially want to focus on the following questions:
+
+Would you like LXD to be available over the network? yes
+Address to bind LXD to (not including port) [default=all]:
+Port to bind LXD to [default=8443]:
+These are what set up our LXD server to work as a remote.
+
+We could also set this via the following preseed file (note the https_address and trust_password options):
+----------------------------------------------------------------
+config:
+  core.https_address: '[::]:8443'
+  core.trust_password: pinehead
+networks:
+- config:
+    ipv4.address: auto
+    ipv6.address: auto
+  description: ""
+  managed: false
+  name: lxdbr0
+  type: ""
+storage_pools:
+- config:
+    size: 15GB
+  description: ""
+  name: default
+  driver: zfs
+profiles:
+- config: {}
+  description: ""
+  devices:
+    eth0:
+      name: eth0
+      nictype: bridged
+      parent: lxdbr0
+      type: nic
+    root:
+      path: /
+      pool: default
+      type: disk
+  name: default
+cluster: null
+----------------------------------------------------------------------
+Or, if we're working from an existing server not available over the network, we can amend its configuration via the following config commands:
+
+# lxc config set core.https_address <ip>
+
+# lxc config set core.trust_password <password>
+
+We now want to return to the LXD server we've been using throughout this course. To add our new server as a remote, we use the lxc remote add command:
+
+# lxc remote add custom <remote_ip> 
+
+We will be prompted to provide the password we set earlier. If you used the preseed file provided, that password is pinehead.
+
+We can confirm by viewing our list of remotes:
+
+# lxc remote list
+
+We are also able to run any of our LXC commands as usual on our remote, so long as we specify it in our command:
+
+lxc list custom:
+lxc image copy images:alpine/3.11 custom: --alias alpine
+lxc image list custom:
+lxc launch custom:alpine custom:test
+lxc stop custom:test
+lxc delete custom:test
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------3.Anatomy of an Image:
+-----------------------
+Now that we have an image remote set up, it's time to consider what's in the images we're storing in the remotes themselves. 
+We know that LXC does much of the work in isolating and providing resources, so how much does an image bring into play?
+
+To see, we can actually download any of our images as a collection of raw files through the lxc image export command. Let's consider our alpine3.10 image:
+
+# mkdir alpine
+
+# lxc image export alpine3.10 alpine/
+
+If we look inside, we have two files: a .squashfs file system and a .tar.xz file starting with meta. Let's first take a look at the file system by 
+mounting it to our system:
+
+# mkdir /dev/alpine-expanded
+# mount <id>.squashfs /dev/alpine-expanded
+
+From here, we can view the files we would use on any other file system:
+
+# ls /dev/alpine-expanded
+
+Notice how the directory structure mimics the directory structure we expect to see in any Linux install, containing our sets of binaries and libraries, 
+mount locations, configuration directories, etc. Everything we would expect to see in a Linux install is here.
+
+For LXC to understand what it's going to be doing with this file system, we also have that metadata archive. Let's return to our exported image and extract 
+the contents:
+
+# cd ~/alpine
+# tar -xvf meta-<id>.tar.xz
+
+This outputs one file and one directory: metadata.yaml and templates/:
+
+# ls
+# cat metadata.yaml
+
+metadata.yaml contains general information regarding the image itself, such as the architecture and operating system name, as well as an outline of
+ files that are expected to be created during container launch. These files are for configurations that are affected by options set via the lxc launch 
+command and via profiles, such as the container name. Templates for these files can be found in the templates directory:
+
+# ls templates
+
+For example, the hosts.tpl template contains an /etc/hosts configuration that references the container name:
+
+cat templates/hosts.tpl
+So now that we know what goes into an image, how can we create them? This depends a bit on our needs, but the easiest way is to take existing content and publish it, which we will discuss in the next lesson.
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+4.Publishing Containers:
+------------------------
+The easiest way to create an image is to base one on an existing container. This is ideal for situations where you want to store and share configurations
+based on existing images — such as the ones on the public repositories. For example, instead of limiting ourselves to just providing snapshots of our web01
+container, we can turn our snapshot into an image, then share that with our remote so anyone else who needs to create a web server can use it as a base.
+
+Before we begin, however, we need to configure our server to be available on the network:
+
+# lxc config set core.https_address 172.31.96.74
+
+Now, to create an image from our web/1.0 snapshot, we only have to use the lxc publish command:
+
+# lxc publish local:web01/1.0 custom: --alias nginx-ubuntu
+
+If we wanted to publish this on our local remote, we could choose to leave out the custom remote we specified.
+
+From here, we only have to use the image as usual to launch a new container:
+
+# lxc image list
+
+# lxc launch nginx-ubuntu web03
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+==========================================================================================================================================================================================================
+SERVER MANAGEMENT:
+==========================================================================================================================================================================================================
+1.Server Configuration:
+-----------------------
+Although we touched on this briefly in the Image Remotes lesson, we can reconfigure our LXD server at any time through the use of the lxc config command.
+
+In terms of what we can configure, think back to our lxd init command. We can set our cluster configuration, set up the networking to work as a remote 
+(or work with remotes), configure our image update settings, and set up a MAAS server. We can also connect a Candid identity service server, set a debug 
+address server, configure an http proxy, change the image compression, set up RBAC, and set a specific volume to store backups or images.
+
+In our case, let's go ahead turn auto-updates off for images. The command mimics the same structure we've seen time and time again with lxc <action> set command. We just need to provide a key and value:
+
+# lxc config set images.auto_update_cached false
+
+Alternatively, we could also use the edit command without providing any additional values to update the YAML file:
+
+# lxc config edit
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+2.LXD Server Clustering:
+-------------------------
+Should we expect that we'll need to run LXD across a number of servers, we can ensure these servers use the same distributed database and 
+can be managed via the lxc command from any server by enabling cluster mode.
+
+Cluster mode can be enabled on any new or existing LXD server just by updating the configuration. The easiest way to do this is by using 
+lxd init to reconfigure the server, or using a preseed file, since a number of changes have to be made.
+
+Let's go ahead and run lxd init from our usual LXD server:
+
+# lxd init
+
+The very first question asks if we want to use LXD clustering. This time, answer yes.
+
+We're then prompted for a name for the node. This can be the fully-qualified domain name, but can also be a shorter nickname for ease. 
+I'm using the shortened hostname for my server.
+
+For the IP address, use the recommended private IP that should be pre-populated in the prompt.
+
+Next, select no when asked about using an existing cluster. We do, however, want to supply a setup password for the cluster. 
+This would be the same as our trust_password we configured previously.
+
+Once the clustering prompts are complete, we can finish this as we would any other LXD install.
+
+We now want to access a second server. Any server added to a cluster must use the same configuration as our other clustered servers, so you'll 
+want to take special note of any bridge names. It is also recommended that at least three servers are used in a cluster, so even if one fails 
+there is redundancy. However, we'll be sticking with two for this demonstration.
+
+On the second server, as with our first, our options are to use lxd init itself or create a preseed file. Let's use lxd init with prompts, 
+then review the preseed and consider what changes we would have to make were we to use this on multiple hosts. Note that to join a cluster, 
+we need to use the lxd init command with sudo:
+
+
+# sudo lxd init
+
+Once again, we want to type yes when asked if we are using a cluster, then provide a nickname for the host and an IP address.
+ However, when asked if we want to join a cluster, this time we should say yes.
+
+We then want to supply the private IP of our primary LXD host. A fingerprint is then provided for us to confirm. From our primary server, run lxd info to verify the fingerprint:
+
+# On the primary cluster node
+
+# lxd info
+
+Once confirmed, provide the password. We're then warned that should we proceed, any existing data will be lost. Confirm.
+
+We're then prompted to set the locations of the same storage pools the initial server on the cluster has. All clusters must also have the same storage profile. Use a loop disk for these, then type yes to output a preseed file.
+
+At this point, the part of our preseed file that we want to consider is the cluster configuration:
+--------------------------------------------------------------------------------------------------------
+cluster:
+  server_name: <server_name>
+  enabled: true
+  member_config: []
+  cluster_address: 172.31.106.72:8443
+  cluster_certificate: |
+    -----BEGIN CERTIFICATE-----
+    <GPG KEY>
+    -----END CERTIFICATE-----
+  server_address: ""
+  cluster_password: pinehead
+---------------------------------------------------------------------------------------------------------
+Notice how it includes a certificate, the IP address and port of the server to connect to, as well as a password. These are the needed components to 
+connect to our cluster, however we couldn't just take this configuration wholesale and drop it on another server. Instead, we'd need to update the 
+server_name property to reflect the actual server itself. This can be done manually, through templating via your favorite configuration management 
+program, via script -- any number of ways. Each server in the cluster needs an unique name, because while LXD will automatically send containers 
+to the least-populated cluster, we can also specify and otherwise run commands on each cluster server individually, as well as part of the group.
+
+Let's return to our primary LXD server and try this out. We can list our cluster by ID:
+
+# lxc cluster list
+
+Then, using the name of any of these servers, run a command specifically on it:
+
+# lxc launch --target <cluster-host> ubuntu-18.04 test-ubuntu
+
+When we then use a lxc list, we can see all the containers in the cluster, as well as their assigned clusters:
+
+# lxc list
+
+From here, it's up to you if you want to keep the second LXD server around. If you want to free up space in the cloud playground, however, be sure to remove it. First move the container:
+
+# lxc stop test-ubuntu
+# lxc move test-ubuntu test-ubuntu --target <main-server>
+
+Then delete the server from the cluster:
+
+# lxc cluster remove <name>
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+3.LXD Server Backups
+---------------------
+When it comes to creating backups of our LXD hosts, we need to consider both how much we want to back up and how we are going to actually 
+create the backups. A LXD server is comprised of five components, all of which contain database records alongside their usual file systems 
+or state files.
+
+When backing up a LXD server, we want to consider:
+
+Instances
+Images
+Networks
+Profiles
+Storage volumes
+
+Full Backups
+-------------
+To create a full backup from our LXD server, we only have to archive the contents of /var/snap/lxd/common/lxd (or /var/lib/lxd, 
+if we're using the native package manager download). On a new server, we can then unarchive this file at the same location after 
+installing LXD. Once finished, restart LXD:
+
+
+sudo -i
+cd /var/snap/lxd/common/lxd
+tar -cvzf ~/lxd-server.tar.xz .
+To restore from this profile, we can copy over the file:
+
+cd
+scp lxd-server.tar.xz cloud_user@<private-ip-of-backup-server>:/tmp/
+And use it on the new host:
+
+sudo -i
+snap stop lxd
+rm -rf /var/snap/lxd/common/lxd/*/*
+rm -rf /var/snap/lxd/common/lxd/server.*
+tar -xzf /tmp/lxd-server.tar.xz -C /var/snap/lxd/common/lxd
+snap start lxd
+
+Storage Pools
+--------------
+In addition to the above, every storage pool contains a metadata file, backup.yaml in its root volume. This can be used to restore any specific storage pool configurations.
+
+Secondary Server
+
+For a live backup, a second server can be created, and individual instances and storage volumes can be copied over at the desired intervals first by taking a snapshot of any container:
+
+lxc snapshot test backup
+lxc copy local:test/backup <backup-remote>:test
+You will most likely want to script this somehow so all containers can be backed up periodically. You can also use your configuration management system of choice if you're already using one. Here is a simple Bash script to work from that can be added to the crontab:
+
+#! /bin/bash
+
+containers="test"
+
+for c in $containers
+do
+        lxc delete $c/backup &> /dev/null
+        lxc snapshot $c backup
+        lxc delete backup-remote:$c &> /dev/null
+        lxc copy local:${c}/backup backup-remote:$c
+done
+Note you will have to supply your desired remote's name.
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+5.Production Considerations:
+-----------------------------
+While our current configuration is working just fine on our small server, if we want to use LXD in production there is a chance that the tens of 
+thousands of file operations can cause errors. To solve this, we can update some values in two particular files.
+
+First, we want to update the file limits in /etc/security/limits.conf:
+
+vim /etc/security/limits.conf
+*               soft    nofile          1048576
+*               hard    nofile          1048576
+root            hard    nofile          1048576
+root            soft    nofile          1048576
+*               soft    memlock         unlimited
+*               hard    memlock         unlimited
+Next, we want to update /etc/sysctl.conf:
+
+vim /etc/sysctl.conf
+fs.inotify.max_queued_events=1048576
+fs.inotify.max_user_instances=1048576
+fs.inotify.max_user_watches=1048576
+vm.max_map_count=262144
+kernel.dmesg_restrict=1
+net.ipv4.neigh.default.gc_thresh3=8192
+net.ipv6.neigh.default.gc_thresh3=8192
+kernel.keys.maxkeys=2000
+Save and exit. We then have to reboot our server for these changes to take place:
+
+sudo reboot
+==========================================================================================================================================================================================================
