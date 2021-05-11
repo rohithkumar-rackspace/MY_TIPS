@@ -1,0 +1,349 @@
+KEYSTONE OPENSTACK IDENTITY SERVICE:
+====================================
+1.Keystone:
+===========
+Its a openstack keystone service.
+
+Authentication or Authorization:
+=================================
+Authentication is the act of confirmation the identity of a specific user.
+keystone provides authenticate to Keystone via the Horizon dashboard, 
+command-line Interfaces CLI,SDk or directly to the API.
+
+Once a user is authenticated, keystone is not involved in determining the users access
+rights.This authorization is handled by a file called policy.json and it lives in each 
+installed openstack serives configuration directory.
+
+KeyStone Architecture:
+======================
+Keystone architecture,keystone is the common authentication system across the entire cloud,
+receiving more requests that any other openstack services.since the liberty version of openstack,
+the keystone development team moved over to using Apache as the API frontend to keystone. The Apache daemon is
+bound to port 5000 and is the primary gateway to keystone.All users and services rely on keystone for authentication.
+The openstack environments relational database management system ( typically MariaDB, a fork of MySQL)contains a keyStone 
+database that stores data for all the various keystone resources.
+
+Apache2-API      port 5000
+glance-api       port 9292
+nova-api         port 8774
+neutron-server   port 9696
+cinder-api       port 8776
+heat-api         port 8004
+swift-proxy      port 8080
+
+ketstone DataBase
+------------------
+Domain Details
+Project Details
+User  Details
+Role Details 
+Group Details
+Service Catalog
+Endpoint Details
+keystone is central openstack authentication service and utilizes the Apache Web server for its frontend web server. All users and Openstack services
+are required to authenticate to keystone.
+
+# openstack token issue
+
+====================================================================================================================================================================================================================================================================================
+OPENSTACK CLI:
+--------------
+To access ur openstack resources over cli u need some basic creds.
+keystone authentication endpoint: a url location of the keystone API daemon.in production openstack environments,its typically a 
+--------------------------------  resolvable name like https://mycloud.example.com:5000/v3
+Domain: The domain ur user lives in.
+-------
+Project: The project to which you want to be scoped.
+--------
+username:ypur keystone username:
+---------
+password:your keystone password:
+---------
+
+There are 2 primary ways a user can authentication information to openstack with the cli.
+
+1.CLI arguments:
+-----------------
+# openstack --os-auth-url http://192.168.56.56:5000/v3 --os-user-domain-name default --os-project-name marketing 
+  --os-username admin --os-password admin --os-identity-api-version 3 user list
+
+2.Bash Variables: collect all details and make a openrc file  and source and use 
+-----------------
+[root@openstack-client ~]# vi  admin.rc 
+#!/bin/sh
+export OS_NO_CACHE='true'
+export OS_TENANT_NAME='admin'
+export OS_PROJECT_NAME='admin'
+export OS_USERNAME='admin'
+export OS_PASSWORD='v4SJTbtYgEWeWPyU89z3ThJ6'
+export OS_AUTH_URL='https://management-vip.domain.tld:5000/'
+export OS_COMPUTE_API_VERSION=2.53
+export OS_IDENTITY_API_VERSION=3
+export OS_DEFAULT_DOMAIN='default'
+export OS_USER_DOMAIN_NAME='Default'
+export OS_PROJECT_DOMAIN_NAME='Default'
+export OS_AUTH_STRATEGY='keystone'
+export OS_AUTH_TYPE='password'
+export OS_REGION_NAME='RegionOne'
+export CINDER_ENDPOINT_TYPE='internalURL'
+export GLANCE_ENDPOINT_TYPE='internalURL'
+export KEYSTONE_ENDPOINT_TYPE='internalURL'
+export NOVA_ENDPOINT_TYPE='internalURL'
+export NEUTRON_ENDPOINT_TYPE='internalURL'
+export OS_ENDPOINT_TYPE='internalURL'
+export OS_INTERFACE='internal'
+export MURANO_REPO_URL='http://storage.apps.openstack.org/'
+export MURANO_PACKAGES_SERVICE='glance'
+export OS_CACERT='/etc/ssl/certs/CEE/ca-bundle.crt'
+export GLANCE_CLIENT_CA_FILE='/etc/ssl/certs/CEE/ca-bundle.crt'
+[root@openstack-client ~]# 
+
+#source adminrc 
+
+Verify:
+--------
+# export | grep OS
+# openstack user list 
+# openstack user list --domain heat    ----project specific user list 
+# openstack token issue  ---------------to verify keystone is working or not 
+
+
+===============================================================================================================================================================================================================
+1.DOMAIN:
+==========
+Domains are high-level logical containers used for users,groups and projects.Consider a new IT Company wanting to creating an openstack public cloud.
+The company would most likely put eachother new customer in their own domain.Similar to popular public clouds such as Amazon Web Services or GCP,
+each customer would create resources that are segregated from other customers residing in the same environment.The customer would not only be able to 
+create their very own virtual resources, such as virtual machines or networks, but also create their very own users, projects, and groups within that 
+domain.
+almost every resource or object in openstack gets a universal unique identifier UUID.although we can assign human-readable names to these resources
+the UUID is used to uniquely identify resources and objects in logs, databases and other areas of the openstack infrastrcture.
+
+create:
+-------
+# openstack domain create --description <description>  <name>
+
+List:
+-----
+# openstack domain list 
+
+
+Delete:
+-------
+# openstack domain set --disable  <DOMAIN-NAME>
+
+# openstack domain delete <DOMAIN-NAME>
+
+Enabling domain in openstack Dashboard
+---------------------------------------
+u have to enable  OPENSTACK_MULTIDOMAIN_SUPPORT  TO TRUE 
+
+1.Edit below file to add below line /etc/openstack_deploy/user_variable.yml
+
+horizon_keystone_multidomain_support: True 
+u maynotice that the login screen doesnt have a field for entering the domain name.this is because of multi domain is turned off in the horizon dashboard.
+if u want to change this go to "/etc/openstack-dashboard/local_settings.py  and set to OPENSTACK_KEYSTONE_MULTIDOMAIN_SUPPORT to true and restart apache 
+# sudo systemctl restart apache2.
+=======================================================================================================================================================================================================================
+2.PROJECTS:
+============
+a project represents an area where resources get created. they set up each customer in their own domain and within the domain allow the customer to 
+create multiple projects.
+projects would mostly likely to be representations of various business units so that they could easily segregate resources.
+a user could certainely belong to one or more projects but they can only be authenticated to one project at one time.
+project= Users,Groups,roles,flavors,Networks,all resources is attached to project.
+projects = tenants = accounts
+
+Create:
+--------
+# openstack project create --domain  <domain-name> --description "project-description"  <PROJECT_NAME>
+
+list:
+----
+# openstack project list 
+
+show:
+-----
+# openstack project show  <PROJECT_NAME>
+
+
+Delete:
+-------
+# openstack  project delete 
+
+=================================================================================================================================================================================================================================================================
+3.USERS:
+========
+users are that have been created for individual people in an organization. users typically reside in the keystone database, 
+but cloud positively live in an active directory or LDAP server openstack service such as Glance,Neutron and Nova do as well.
+there will be always be a project called Service in any openstack cloud.the service project will always contain user accounts 
+for each openstack service when service wants to talk to another service via its user account residing in the service project. 
+key stone is the only user account you will not need to authenticate againest it self will not see in the service project.
+
+Create:
+-------
+# openstack user create --domain <DOMAIN-NAME> --password XXXXXXXX  <USER_NAME>
+
+Create user in a project:
+-------------------------
+# openstack user create --domain <DOMAIN-NAME>  --project <PROJECT_NAME>  --password  XXXXXXXX  <USER_NAME>
+
+list:
+-----
+# openstack user list 
+
+show:
+-----
+# openstack user show <USER_NAME>
+
+Delete:
+-------
+# openstack user delete  <USER_NAME>
+
+===============================================================================================================================================================================================================================================================================
+4.ROLES:
+========
+Role is a label that are applied directly to a user or a group.
+role is just a label associated with a user on a project a file called policy.json handles authorization by determining what a user with a specific
+role can or cannot do.
+#cat /etc/nova/policy.json.... can define role.
+Roles are labels that get applied directly to a user or group on a specific project. when a user is scoped to a project,
+they receive their associated role.
+
+Create:
+-------
+# openstack role create --domain <DOMAIN-NAME> <ROLE_NAME>  ----->with in domain
+
+# openstack role create <ROLE_NAME>  ---->with in default domain.
+
+View Roles in a domain:
+-----------------------
+# openstack role  list --domain <DOMAIN-NAME>  -----check roles associated with in a domain name.
+
+# openstack role list 
+
+RoleFile:
+---------
+# /etc/keystone/policy.json ---> having admin rights u can modify to change rights of a role 
+
+Assighn role to USER:
+----------------------
+# openstack role add --domain  <Domain> --user <USER_NAME>  <ROLE_NAME>
+# openstack role add --domain  <DOMAIN> --user <USER_NAME>  --role-domain  <role-domain> <ROLE_NAME>
+
+Role Assignment list of a User:
+-------------------------------
+# openstack role assighnment list 
+
+Delete:
+-------
+# openstack role delete <rolename>
+
+=======================================================================================================================================================================================================================================================================================
+5.GROUPS:
+=========
+Groups are newer keystone concept that provide an easy way to apply an existing role to multiple users.
+
+Create:
+-------
+# openstack group create --domain <DOMAIN-NAME>  --description "Group Description"  <GROUP-NAME>
+
+List:
+-----
+# openstack group list 
+
+Add Group to Role:
+-------------------
+# openstack role add  --group <GROUP-NAME> --domain <DOMAIN-NAME> --role-domain <ROLE-DOMAIN>  <ROLE_NAME>
+
+Add User to the Group:
+----------------------
+# openstack group add user --group-domain  <DOMAIN-NAME> --user-domain  <DOMAIN-NAME>  <GROUP-NAME> <USER_NAME>
+
+Check users in Groups:
+----------------------
+# openstack group contains user  <GROUP-NAME> <USER_NAME>
+
+Remove user from Group:
+-----------------------
+# openstack  group remove  user  <GROUP-NAME>  <USER_NAME>
+
+Delete:
+-------
+# openstack group delete <GROUP-NAME>
+
+=========================================================================================================================================================================================================================================
+6.Quotas:
+=========
+quotas determine the quantity or size of resourses that can be created within a specific project. they act as guardrans by preventing users
+from exceeding capacity. althrough each openstack service keeps track of the utilization of these resources , adjusting quotas is easily done 
+with within the KeyStone panel of the horizon dashboard.
+
+Quotas= resource Quotas ---> Projects
+
+====================================================================================================================================================================================================================================================
+7.Service Catalog/EndPoints:
+=============================
+The service catalog is map stored in keyStone that contains a list of services and endpoints. I like to think of the Service Catalog as the 
+Openstack Telephone book.it provides a listing of API endpoints for all servers installed in the environment. There are three URLS provided 
+for each services in catlog: public,internal and admin.
+- Normally openstack users and admins indirectly interacts with openstack service APIs using gui / cli.
+ catalog  will list all URls that are stored in keystone.this listimg shows the api urls (endpoints).for all services currently installed in the opensatck environment.
+
+1.the openstack operator/developer decides they want to diectly integract with the API, so they receive the keystone authentication URL, username,Password,Domain and Project
+ directly from their openstack administrator they send this info via api request. ( using tool such as Curl or Wget to Keystone)
+ 
+2.keystone responds back with the things a token scoped to the specific project and a service catalog.
+
+3.the service catalog shows the location of all the services APIs in the openstack environment. if they deside they want to create new instance, they lookup how to make their API call from Nova APi Documentation Available.
+  at http://developer.openstack.org
+
+4.the openstack operator/developer then sends the token they received in step2 along with API request for creating a server directly to the Nova API public URL endpoint.
+
+5. if the users role has been granted the authorization to create servers the Nova Service would fullfil the request to create a server, and the user would receive an HTTP 200 ok from
+the nova api -confirming the request was successfully fullfilled.
+
+Some Services use the catalog to do lookups on how to send API calls to other services.
+an openstack administrator you may be responsible for advertising a newly installed openstack service to users of the environment. once this service gets installed by the openstack infrastructure 
+engineer, you need to add it to the service catalog so that users know the service is available. adding new services and endpoints to the catalog can easily be done via python-openstackclient.
+
+There are theree endpoints for each service in the serive catalog:
+
+1.public:
+----------
+The URL that users would would use for externally accessing the API. This would typically be a external IP address ( name that resolves to an external Ip address).
+One can imagine being at a coffee shop or somewhere external to the openstack environment. Even a smartphone app can use the public endpoint to make API calls to the service.
+
+2.Internal:
+-----------
+The URL typically used by services by services for internal communication.This would typically be an internal IP address only accessible from within the openstack cluster
+There is no need for a user or service to use a public endpoint if they are inside the openstack environment.an openstack administrator  or infrastructure engineer who has SSh'd into an opensatck server could also use 
+this endpoint.
+
+3.Admin:
+--------
+The URLS is used to expose special admin-only features for a service, althrough it is typically the same URL/port as internal. in fact, Keystone is the only service installed in the included 
+virtual appliance that advertises a diffrent port for the admin URL port 35357. Previous versions of keystone unlocked special functionality on this port, but as of the newton release there is no functionality diff between the 5000 and 35357 if one is using the v3 Keystone API.
+
+To list Catalogs:
+------------------
+# opensatck catalog list 
+
+To list end points:
+--------------------
+# openstack service list 
+
+# opensatck endpoint list 
+
+To create Service catalogs and end points:
+-------------------------------------------
+#  openstack service create --name trove --description "openstack trove" database 
+
+# openstack endpoint create --region regionone database public
+# openstack endpoint create --region regionone database internal
+# openstack endpoint create --region regionone database admin
+
+List:
+-----
+# openstack catalog list 
+=================================================================================================================================================================================================================================================================================================================================================================
