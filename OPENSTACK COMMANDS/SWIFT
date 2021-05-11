@@ -1,0 +1,162 @@
+==========================================================================================================================================================================================================
+SWIFT OPENSTACK OBJECT STORAGE SERVICE :
+==========================================================================================================================================================================================================
+1.Creating Objects:
+--------------------
+1.Creating Object Containers:
+------------------------------
+# openstack  container create containername
+
+2.List Containers:
+------------------
+# openstack container list 
+
+3.Setup additional details to containers:
+-----------------------------------------
+# openstack container set containername --property title=cookbooks
+
+4.To view container details:
+----------------------------
+# openstack container show containername
+
+5.create a pseudo folder in container user /
+---------------------------------------------
+# openstack container create  containername/pseudofolder
+
+6.Verify:
+----------
+# openstack container show  containername/pseudofolder
+=================================================================================================================================================================================================
+2.Deleting Object Containers:
+-----------------------------
+1.List available containers:
+-----------------------------
+# openstack container list 
+
+2.view details of container:
+-----------------------------
+#openstack container show  containername
+
+3.Delete Containers:
+--------------------
+# openstack container delete containername
+
+=====================================================================================================================================================================================================================
+3.Uploading Objects:
+---------------------
+1.we will upload the intro.txt file into the books container: 
+-------------------------------------------------------------
+# openstack object create  containername  objectname.
+
+2.list objects in a container:
+-------------------------------
+#openstack object list containername
+
+3.we can upload an object into the pseudofolder:
+------------------------------------------------
+#openstack object create  containername/pseudofolde  swift.txt 
+
+4.list the objects in a container:
+------------------------------------
+#openstack object list containername
+
+5.to list objects inthe pseudofolder:
+--------------------------------------
+# openstack object list containername  --prefix pseudofolder  /
+
+6.to list top level objects in a container use delimiter flag:
+--------------------------------------------------------------
+# openstack object list containername --delimiter /
+
+7.show info of an object:
+---------------------------
+openstack object show containername  pseudofolder/swift.txt
+
+=============================================================================================================================================================================================================================================
+4.Uploading Large Objects:
+--------------------------
+1.list available containers.
+----------------------------
+# swift list 
+
+2.To upload a large file we will specify the segment size of the objects in bites use -s flag.
+----------------------------------------------------------------------------------------------
+# swift upload -s 25000 containername  objectname 
+
+3.verify that the file has been uploaded by listing the available objects in container:
+---------------------------------------------------------------------------------------
+#swift list containername
+
+4.view the content of uploaded object in the container using stat command:
+---------------------------------------------------------------------------
+#swift stat containername objectname 
+
+============================================================================================================================================================================================================================================================
+5.Downloading Objects:
+----------------------
+1.list the available objects in a container:
+--------------------------------------------
+# openstack object list books 
+
+2.To Download the desired file:
+-------------------------------
+#openstack object save containername objectname
+
+3.we can also download a file and specify the destination file:
+---------------------------------------------------------------
+# openstack object save containername objectname  --file /tmp/objectname 
+==============================================================================================================================================================================================================================================================
+6.Deleting Objects:
+-------------------
+1.list available objects in a container:
+----------------------------------------
+# openstack object list containername
+
+2.delete the object from container:
+-----------------------------------
+# openstack object delete containername objectname 
+
+3.list available objects in a container after object deletion:
+--------------------------------------------------------------
+# openstack object list containername
+
+4.To delete all objects from a container and then delete container:
+-------------------------------------------------------------------
+#openstack container delete -r containername
+
+=====================================================================================================================================================================================================================================================================
+7.Container ACLs:
+-----------------
+1.first view the existing ACLs on a Container:
+-----------------------------------------------
+# swift stat containername
+
+2.lets set a read ACL to make the container public:
+----------------------------------------------------
+# swift post books --read-acl ".r:*,.rlistings"
+
+3.To make container writable by everybody:
+------------------------------------------
+#swift post books --write-acl "*:*"
+
+4.Now verify details of ACLs on a Container:
+-----------------------------------------------
+# swift stat containername
+
+5.To Remove the write ACL :
+---------------------------
+# swift post -r "" containername --read permissions 
+# swift post -w "" containername --write permissions
+
+6.if u want to share ur container with another user in ur openstack environment u can set permissions based on the project and user.
+-------------------------------------------------------------------------------------------------------------------------------------
+# swift post -r "admin:*" containername
+
+7.Verify the details of the container:
+--------------------------------------
+# swift stat -v containername
+
+8.as an admin user test the access to the container:
+-----------------------------------------------------
+#swift --os-storage-url http://172.29.236.100:8080/v1/AUTH_40345/books list 
+=============================================================================================================================================================================================================================================================================================
