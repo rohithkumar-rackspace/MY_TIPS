@@ -1,1 +1,158 @@
-LINUXING
+===================================================================================================================================================================
+#########################################################LINUX NETWORKING & TROUBLESHOOTING#######################################################################
+===================================================================================================================================================================
+1.MACHINE INTERFACE:
+=====================
+Using the Network Environment Interface Too ( ip,nmcli,)
+===========================================================
+MacAddress: unique fingerprint of the network interfaces.
+-----------
+IP Address: Unique address on the Network.
+------------
+Subnet: Seperate the IP into network and host addresses
+-------
+GateWay: The Connection leading outside of the local network
+---------
+DNS Host: Translates hostname into IP address
+---------
+DNS Domain: The Lookup domain for the host.
+-----------
+
+Commands:
+----------
+# man ifconfig
+
+# ifconfig
+  Check IP,SUBNETMASK,MTU, ETH0,LO
+  
+# ip add show.         # check ip address.
+
+# nmcli                # get more info about interface in a server.
+
+# nmcli device show        # Device info
+# nmcli connection show.   # Connection Show
+# nmcli d show             # more info detailed
+
+Check Route:
+------------
+# ip route show.  # check routes.
+# route -n        # check default routes.
+# routel          # check routes
+--------------------------------------------------------------------------------------------------------------
+==========================================================================================================================================
+2.Network Topology:
+====================
+1.Basic Network Topology:
+===========================
+SWITCHING TOPOLOGY:
+--------------------
+SERVER [ eth0 ]------>SWITCH------->ROUTER--------->ISP
+
+ROUTING TOPOLOGY
+-----------------
+ROUTER-------ISP--------ROUTER-------ROUTER------ROUTER
+
+SWITCHING & ROUTING:
+--------------------
+NETWORK A. SERVER [ eth0 ]------>SWITCH------->ROUTER--------->ISP
+-------------ROUTER-----------------ROUTER---------------------
+NETWORK B SERVER [ eth0 ]------>SWITCH------->ROUTER--------->ISP
+
+CLOUD SERVER TOPOLOGY:
+----------------------
+1.USER-----2.AWS-----3.VPC---SUBNET---SECURITY GROUP----EC2.
+
+Conclusion:
+-----------
+- Switches forward packets within the the terminal internal network.
+- Routers forwards packets between networks.
+- Data travel through both to reach a destination outside of the LAN.
+- Cloud networking is a software defined simulation of a tradition network.
+------------------------------------------------------------------------------------------------------------------------------------
+2.OSI LAYERS:
+--------------
+- The OpenSystem interconnection Model ( OSI Model) is a conceptual model that characterizes and standardizes
+  the communication function of a telecommunication or computing system without regard to its underlying internal structure
+  and technology. its goal is the interoperability of diverse communication systems with standard protocols.
+  the model partitions communication system into abstraction layers.
+  - The original version of model is defined seven layers.
+  
+  7.APPLICATION LAYER:
+  ---------------------
+  6.PRESENTATION LAYER:
+  ---------------------
+  5.SESSION LAYER:
+  ----------------
+  4.TRANSPORT LAYER:
+  ------------------
+  3.NETWORK LAYER:
+  -------------------
+  2.DATALINK LAYER:
+  -------------------
+  1.PHYSICAL LAYER:
+  -------------------
+=====================================================================================================================================================
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
