@@ -38,8 +38,7 @@ Check Route:
 # ip route show.  # check routes.
 # route -n        # check default routes.
 # routel          # check routes
---------------------------------------------------------------------------------------------------------------
-==========================================================================================================================================
+====================================================================================================================================================================
 2.Network Topology:
 ====================
 1.Basic Network Topology:
@@ -68,7 +67,7 @@ Conclusion:
 - Routers forwards packets between networks.
 - Data travel through both to reach a destination outside of the LAN.
 - Cloud networking is a software defined simulation of a tradition network.
-------------------------------------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------
 2.OSI LAYERS:
 --------------
 - The OpenSystem interconnection Model ( OSI Model) is a conceptual model that characterizes and standardizes
@@ -77,21 +76,95 @@ Conclusion:
   the model partitions communication system into abstraction layers.
   - The original version of model is defined seven layers.
   
-  7.APPLICATION LAYER:
-  ---------------------
-  6.PRESENTATION LAYER:
-  ---------------------
-  5.SESSION LAYER:
-  ----------------
-  4.TRANSPORT LAYER:
-  ------------------
-  3.NETWORK LAYER:
-  -------------------
-  2.DATALINK LAYER:
-  -------------------
-  1.PHYSICAL LAYER:
-  -------------------
-=====================================================================================================================================================
+  7.APPLICATION LAYER: interface permitting the user to send or receive data through clients & applications
+  -------------------- Ex: http,pop3,smtp,dns.
+  
+  6.PRESENTATION LAYER: converts the request from the app into universal format
+  --------------------- EX: TLS,SSL,MIME,GIF.
+  
+  5.SESSION LAYER: permits the ability to open close & manage a session between the process & response.
+  ---------------- EX:LDAP,NetBios,RPC,SMB,SSL.
+  
+  4.TRANSPORT LAYER: defines how data will be sent providing validation & security 
+  ------------------  EX: TDP,UDP,SPX,ISCSI
+  
+  3.NETWORK LAYER: looks for the best path to reach the destination  ip
+  ---------------- EX: ip,ipsec,icmp,rip
+  
+  2.DATALINK LAYER: Handles Communication between adjacent nodes MAC
+  ----------------- Ex:ethernet,IEEE 802.11 wifi,ppp,VLAN,MAC
+  
+  1.PHYSICAL LAYER: Handles bit level transmission between network nodes. 
+  ----------------- Ex: IEEE 1394, ethernet physical, infrared.
+====================================================================================================================================================================
+3.IP ADDRESSES:
+================
+1.What is an ip address?
+------------------------
+- address of an device from its network. just like house numbers.
+- ipv4 & ipv6 are successfull ones.
+- 32bit address
+
+      0-255.      0-255.      0-255.     0-255
+Ex:    192  .     168.        101.        100
+---   11000101.  11101010   001111001   11000101
+       8bit       8bit         8bit        8bit
+
+IPV4:
+------
+- Successfull version.
+- 32 bit address
+
+2. IPV4 CLASSES:
+-----------------
+
+CLASS A    0.         0.0.0.0. to  127.255.255.255
+
+CLASS B   10          128.0.0.0 to  191.255.255.255
+
+CLASS C  110.         192.0.0.0. to  223.255.255.255
+
+CLASS D   1110.       244.0.0.0. to 239.255.255.255         # musticast purpose
+
+CLASS E.  1111.       240.0.0.0. to 255.255.255.255.       # Experimental use
+
+3.PRIVATE IP RANGES:
+---------------------
+
+CLASS A.      10.0.0.0. to. 10.255.255.255
+
+CLASS B.      172.16.0.0 to 172.31.255.255
+
+CLASS C       192.168.0.0 to 192.168.255.255
+
+public ip: for external communication
+----------
+private ip: for LAN Communication
+------------
+
+3.RESERVED RANGES:
+-------------------
+LoopBack: its used for communication by localhost it self.  
+---------
+127.0.0.0. to 127.255.255.255 
+127.0.0.1   ---------------------Loop Back IP.
+
+====================================================================================================================================================================
+3.NETWORK FLOWS:
+=================
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
