@@ -1,0 +1,220 @@
+===================================================================================================================================================================
+#########################################################Deploy and Manage OpenStack on Ubuntu - Newton:#########################################################
+===================================================================================================================================================================
+1.Deploy and manage openstack on ubuntu - Newton:
+--------------------------------------------------
+Prerequisites:
+==============
+Operating Systems: Ubuntu 16.04 LTS [ Xenial ]
+
+Network: 
+--------
+ManageMent Network : 10.0.0.0 / 24 
+
+Provider Network: 203.0.113.1 / 24
+
+NAT Network: any network
+
+Server Requirement:
+-------------------
+1.Controller Node: 1 Processor, 4 GB Ram, 10 GB Storage, 3 Nics: NAT,Managed,Provider 
+
+2.Compute Node: 1 Processor, 4 GB Ram, 10 GB Storage, 3 Nics: NAT,Managed,Provider
+
+3.Block Storage Node: 1 Processor, 2 GB Ram, 10 GB Drive & 8GB Drive Storage, 3 Nics: NAT,Managed,Provider
+
+4.Object Storage  2 Node: 1 Processor, 2 GB Ram, 8 GB Drive1 & 8GB Drive2 8GB drive3 Storage, 3 Nics: NAT,Managed,Provider
+
+====================================================================================================================================================================
+2. INFRA Preparation:
+-----------------------
+1.Controller Node: 
+-------------------
+- Server Name: Controller
+- Create a VM with 1 Processor, 4 GB Ram, 10 GB Storage, 3 Nics: NAT,Managed,Provider 
+- Install & Configure ubuntu 16.04 on the Controller Node
+  - HostName: controller
+  - User Name : admin password: admin
+  - IP address: MN: 10.0.0.2/24. PN: 203.0.113.2/24
+  - User Name : admin password: admin
+  - install ssh
+  
+2.Compute  Node: 
+-------------------
+- Server Name: Compute
+- Create a VM with 1 Processor, 4 GB Ram, 10 GB Storage, 3 Nics: NAT,Managed,Provider 
+- Install & Configure ubuntu 16.04 on the Controller Node
+  - HostName: compute
+  - User Name : admin password: admin
+  - IP address: MN: 10.0.0.3/24. PN: 203.0.113.3/24  
+  - install ssh  
+
+3.Block Storage  Node: 
+-----------------------
+- Server Name: block
+- Create a VM with 1 Processor, 2 GB Ram, 10 GB Drive & 8GB Drive Storage, 3 Nics: NAT,Managed,Provider 
+- Install & Configure ubuntu 16.04 on the Controller Node
+  - HostName: block
+  - User Name : admin password: admin
+  - IP address: MN: 10.0.0.4/24. PN: 203.0.113.4/24  
+  - install ssh  
+  
+4.Object Storage Node-1:
+-------------------------
+- Server Name: object-1
+- Create a VM with  1 Processor, 2 GB Ram, 8 GB Drive1 & 8GB Drive2 8GB drive3 Storage, 3 Nics: NAT,Managed,Provider 
+- Install & Configure ubuntu 16.04 on the Controller Node
+  - HostName: object-1
+  - User Name : admin password: admin
+  - IP address: MN: 10.0.0.5/24. PN: 203.0.113.5/24 
+  - install ssh  
+
+5.Object Storage Node-1:
+-------------------------
+- Server Name: object-1
+- Create a VM with  1 Processor, 2 GB Ram, 8 GB Drive1 & 8GB Drive2 8GB drive3 Storage, 3 Nics: NAT,Managed,Provider 
+- Install & Configure ubuntu 16.04 on the Controller Node
+  - HostName: object-2
+  - User Name : admin password: admin
+  - IP address: MN: 10.0.0.6/24. PN: 203.0.113.6/24 
+  - install ssh 
+====================================================================================================================================================================
+3.OpenStack Environment SetUp:
+================================
+1.Security:
+-----------
+- 2 main types of passwords in cource
+  - Service_Pass
+  - Service_dbpass
+  
+- we will using 2 default passwords in course
+  
+  openstack: for ADMIN_PASS admin user password
+  ---------- for demo user password
+
+  linuxacademy123:  for rabbitmq with the openstack user
+  ----------------- for all SERVICE_PASS
+                    for all Service_DBPASS
+
+2.Setup Repositories:
+---------------------
+- We will be dealing with 2 diff repos in the course
+  - cloud-archive: newton
+  - cloud-archive: newton-updates
+  
+3.Config Infra Nodes:
+----------------------
+1.Controller Node:
+------------------
+NTP:
+----
+# sudo -su
+# apt install chrony
+# vi /etc/chrony/chrony.conf
+
+ allow 10.0.0.0/24
+:wq!
+
+# service chrony restart
+
+To Enable Repos:
+----------------
+# apt install software-properties-common
+# add-apt-repository cloud-archive : newton
+# add-apt-repository cloud-archive : newton-updates
+# apt update & apt dist-upgrade
+
+Install OpenStack-Client:
+-------------------------
+# apt install python-openstackclient
+
+Install Maria_DB:
+-----------------
+# apt install mariadb-server python-pymysql
+# vi /etc/mysql/mariadb.conf.d/99-openstack.cnf
+
+[ mysqld ]
+bind-address = 10.0.0.2
+default-storage-engine = innodb
+innodb-file_per_table = on
+max_connections = 4096
+collation_server = utf8_general_ci
+character-set-server = utf8
+:wq!
+
+# service mysql restart
+
+secure mysql:
+
+# mysql_secure_installation
+>  setpasswd = linuxacadamy123
+
+Install Messaging Que:
+----------------------
+# apt install rabbitmq-server
+# rabbitmqctl  add_user openstack  linuxacademy123.   ---------user creation
+# rabbitmqctl  set_permission openstack ".*" ".*" ".*"
+
+Install Memcachd:
+------------------
+# apt install memcached python-memcache
+# vi /etc/memcached.conf
+Change ip from localhost to controller ip
+-l 10.0.0.2 # Controller ip
+:wq!
+
+# service memcached restart
+
+
+2.Follow below steps on Compute,Block Storage, Object Storage Node:
+--------------------------------------------------------------------
+NTP:
+----
+# sudo -su
+# apt install chrony
+# vi /etc/chrony/chrony.conf
+
+ #pool
+ server controller iburst
+:wq!
+
+# service chrony restart
+
+To Enable Repos:
+----------------
+# apt install software-properties-common
+# add-apt-repository cloud-archive : newton
+# add-apt-repository cloud-archive : newton-updates
+# apt update & apt dist-upgrade
+
+Install OpenStack-Client:
+-------------------------
+# apt install python-openstackclient
+
+====================================================================================================================================================================
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
