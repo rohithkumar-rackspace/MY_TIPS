@@ -1,6 +1,27 @@
 ====================================================================================================================================================================
 ############################################################## TROUBLESHOOTING OPENSTACK  SERVICES ###################################################################
 ====================================================================================================================================================================
+1.TROUBLESHOOTING OPENSTACK INFRA:
+============================================================================================================================================================
+*Read the operations guide: https:/docs.openstack.org/operations-guide/ops-maintenance.html
+---------------------------
+-Know your system to locate failure ( what components, how they work together)
+-understand the layers ( minimal understand from kernal up to client UI)
+-Learn the tools that can help in troubleshooting ( searching logs, checking statuses)
+-Reach out for help (community is amazing)
+
+Best approach to troubleshooting:
+---------------------------------
+*Avoid Troubles:
+----------------
+-monitoring,logging
+-Alerting
+-Blue-Green deployments
+-dev/staging environments
+-Log analytics, etc
+-infrastructure-as-code
+
+====================================================================================================================================================================
 
 1. KEYSTONE IDENTITY SERVICE:
 ==============================
