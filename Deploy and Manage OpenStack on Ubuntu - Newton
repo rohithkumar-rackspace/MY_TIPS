@@ -78,6 +78,20 @@ Server Requirement:
   - User Name : admin password: admin
   - IP address: MN: 10.0.0.6/24. PN: 203.0.113.6/24 
   - install ssh 
+  
+  6.Setup Static IPs:
+  --------------------
+ # sudo nano /etc/network/interfaces
+ Example:
+ --------
+ auto enp0s25
+iface enp0s25 inet static
+address 192.168.0.16
+netmask 255.255.255.0
+gateway 192.168.0.1
+dns-nameservers 8.8.4.4 8.8.8.8
+
+# sudo ifdown eth0 && sudo ifup eth0 
 ====================================================================================================================================================================
 3.OpenStack Environment SetUp:
 ================================
@@ -106,6 +120,16 @@ Server Requirement:
 ----------------------
 1.Controller Node:
 ------------------
+Edit /etc/hosts file:
+---------------------
+10.0.0.2     controller
+203.0.113.2  controller-api
+10.0.0.3     compute
+203.0.113.3  compute-api
+10.0.0.4     block
+10.0.0.5     object-1
+10.0.0.6     object-2
+
 NTP:
 ----
 # sudo -su
@@ -168,6 +192,16 @@ Change ip from localhost to controller ip
 
 2.Follow below steps on Compute,Block Storage, Object Storage Node:
 --------------------------------------------------------------------
+Edit /etc/hosts file:
+---------------------
+10.0.0.2     controller
+203.0.113.2  controller-api
+10.0.0.3     compute
+203.0.113.3  compute-api
+10.0.0.4     block
+10.0.0.5     object-1
+10.0.0.6     object-2
+
 NTP:
 ----
 # sudo -su
@@ -192,6 +226,95 @@ Install OpenStack-Client:
 # apt install python-openstackclient
 
 ====================================================================================================================================================================
+1.KEYSTONE INSTALLATION IN CONTROLLER:
+======================================
+Please follow below link for Keystone installation in Controller:
+
+https://docs.openstack.org/keystone/wallaby/install/
+
+====================================================================================================================================================================
+2.GLANCE Install and configure (Ubuntu):
+=========================================
+Please follow below link for Glance installation in Controller:
+
+https://docs.openstack.org/glance/wallaby/install/
+
+=====================================================================================================================================================================
+3.Installation and Configuration of the Compute Service:
+--------------------------------------------------------
+3.1.Installation and Configuration of the Compute Service - Nova on the Controller:
+------------------------------------------------------------------------------------
+
+Please follow below link for Compute installation in Controller:
+
+https://docs.openstack.org/nova/wallaby/install/controller-install.html
+
+3.2.Installation and Configuration of the Compute Service - Nova on the Compute:
+------------------------------------------------------------------------------------
+
+https://docs.openstack.org/nova/wallaby/install/compute-install.html
+
+=====================================================================================================================================================================
+4.Installation and Configuration of the Compute Service:
+---------------------------------------------------------
+4.1.Installation and Configuration of the Compute Service - Neutron on the Controller:
+--------------------------------------------------------------------------------------
+https://docs.openstack.org/neutron/wallaby/install/controller-install-ubuntu.html
+
+4.2.Installation and Configuration of the Compute Service - Neutron on the Compute:
+-----------------------------------------------------------------------------------
+https://docs.openstack.org/neutron/wallaby/install/compute-install-ubuntu.html
+
+====================================================================================================================================================================
+5.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
