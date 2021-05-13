@@ -47,6 +47,10 @@ Installation Packages:
 # apt install keystone
 # yum install openstack-keystone httpd mod_wsgi
 
+Check Packages:
+---------------
+# dpkg -s keystone
+
 Keystone Configuration Files:
 ------------------------------
 # /etc/keystone/keystone.conf
@@ -54,8 +58,10 @@ Keystone Configuration Files:
 
 Keystone Services:
 -------------------
-# service apache2 status.              # ubuntu
+# service apache2 status                 # ubuntu
 # systemctl service httpd.service        # redhat
+# ps -aux | grep keystone
+# pgrep -l keystone
 
 Logs:
 -----
