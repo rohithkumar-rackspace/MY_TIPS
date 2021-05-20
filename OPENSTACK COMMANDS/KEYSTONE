@@ -1,21 +1,21 @@
 KEYSTONE OPENSTACK IDENTITY SERVICE:
 ====================================
 1.Keystone:
-===========
+------------
 Its a openstack keystone service.
 
-Authentication or Authorization:
-=================================
-Authentication is the act of confirmation the identity of a specific user.
-keystone provides authenticate to Keystone via the Horizon dashboard, 
+Authentication:
+---------------
+Authentication is the act of confirmation the identity of a specific user.keystone provides authenticate to Keystone via the Horizon dashboard, 
 command-line Interfaces CLI,SDk or directly to the API.
 
-Once a user is authenticated, keystone is not involved in determining the users access
-rights.This authorization is handled by a file called policy.json and it lives in each 
-installed openstack serives configuration directory.
+Authorization:
+--------------
+Once a user is authenticated, keystone is not involved in determining the users access rights.This authorization is handled by a file called policy.json 
+and it lives in each installed openstack serives configuration directory.
 
 KeyStone Architecture:
-======================
+----------------------
 Keystone architecture,keystone is the common authentication system across the entire cloud,
 receiving more requests that any other openstack services.since the liberty version of openstack,
 the keystone development team moved over to using Apache as the API frontend to keystone. The Apache daemon is
