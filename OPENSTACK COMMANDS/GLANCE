@@ -1,6 +1,84 @@
 ================================================================================================================================================================================================
 GLANCE OPENSTACK IMAGE SERVICE:
 ================================================================================================================================================================================================
+1.Glance Architecture: 
+-----------------------
+Glance-api, Glance-registry.
+
+2.Installation Package:
+-----------------------
+
+# apt install glance
+# yum install openstack-glance
+
+3.Configuration files of glance:
+---------------------------------
+
+# /etc/glance/glance-api.conf 
+# /etc/glance/glance-registry.conf 
+
+4.Glance Services:
+-------------------
+- On Controller node,  following command should return service status as “Running”; 
+  otherwise your openstack setup will be unable to launch new instances and existing instances will show unpredictable behavior.
+# systemctl | grep glance
+# service glance-api restart
+# service glance-registry restart
+# systemctl status openstack-glance-api.service
+# systemctl status openstack-glance-registry.service
+
+# ps aux | grep glance
+
+5.Logs:
+--------
+# Glance-api logs: /var/log/glance/api.log
+# Glance-glare logs: /var/log/glance/glare.log
+# Glance-registry logs: /var/log/glance/registry.log
+
+# /var/log/glance/api.log > This file stores all communication between Glance and Openstack Dashboard, so if you are unable to perform any 
+  Glance related operation from Horizon, check logs in this files to find out the exact cause of problem.
+
+# /var/log/glance/registry.log > It’s another file to look for when facing problem with Glance and its flavors, this file stores logs for 
+  different operations between keystone, glance, and compute.
+
+6.Troubleshooting:
+-------------------
+Show detailed output: set debug=True in:
+Glance-api logs: /var/log/glance/api.log
+Glance-glare logs: /var/log/glance/glare.log
+Glance-registry logs: /var/log/glance/registry.log
+$ wget http://download.cirros-cloud.net/0.4.0/cirros-0.4.0-x86_64-disk.img
+# glance image-create --name "cirros" --file cirros-0.4.0-x86_64-disk.img --disk-format qcow2 --container-format bare --visibility=public
+
+7.GLANCE CONFIG FILE:
+----------------------
+/etc/glance/ glance-registry.conf 
+
+As discussed earlier, Glance uses the database for storing metadata. In both config files, you can find something like this:
+
+[database]
+... connection=mysql://glance:password@10.0.2.15/glance
+
+This is the connection URL for the Glance database. The next important thing you will need is the authentication parameters for Keystone. As with other services, you will need to define the basic authentication credentials:
+[keystone_authtoken] auth_uri=http://10.0.2.15:5000/v2.0 identity_uri=http://10.0.2.15:35357 admin_user=glance admin_password=password admin_tenant_name=services
+
+[paste_deploy] flavor=keystone
+
+In our set up, Keystone server has the IP address 10.0.2.15 and you can see the public Identity API endpoint and Admins Identity API endpoint definitions. Each has its own port number—5000 and 35357, respectively. Also as you can see, in the config files the user name for Glance, service tenant, and password are in clear text. It is very important to keep the right permissions for all config files because many of them contain the password in clear text.
+Depending on the OpenStack version you use you will need to put RabbitMQ settings either in the [oslo_messaging_rabbit] or in[DEFAULT] section of /etc/glance/glance-api.conffile. Here is an example:
+
+[oslo_messaging_rabbit] 
+rabbit_host=10.0.2.15 
+rabbit_port=5672 
+rabbit_hosts=10.0.2.15:5672 
+rabbit_use_ssl=False 
+rabbit_userid=guest
+rabbit_password=guest
+sss
+====================================================================================================================================================================
+2.GLANCE COMMANDS:
+====================
+
 1.Uploading Images to Glance:
 -----------------------------
 1.Download cirros image to the /tmp directory
