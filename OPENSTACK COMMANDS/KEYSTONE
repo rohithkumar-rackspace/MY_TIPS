@@ -1,24 +1,86 @@
-1. KEYSTONE OPENSTACK IDENTITY SERVICE:
+KEYSTONE OPENSTACK IDENTITY SERVICE:
 ======================================================================================================================================================================
-1.Keystone:
-------------
-Its a openstack keystone service.
+1.KeyStone Arctecture:
+------------------------
+apache2         port:5000
+glance-api      port:9292
+nova-api        port:8774
+neutron-server  port:9696
+cinder-api      port:8776
+heat-api        port:8004
+swift-proxy     port:8080
 
-OPENSTACK CLI:
---------------
-To access ur openstack resources over cli u need some basic creds.
+2. Installation Packages:
+--------------------------
+# apt install keystone
+# yum install openstack-keystone httpd mod_wsgi
 
-keystone authentication endpoint: a url location of the keystone API daemon.in production openstack environments,its typically a 
---------------------------------  resolvable name like https://mycloud.example.com:5000/v3
-Domain: The domain ur user lives in.
--------
-Project: The project to which you want to be scoped.
---------
-username:ypur keystone username:
+3.Check Packages:
+------------------
+# dpkg -s keystone
+
+4.Keystone Configuration Files:
+--------------------------------
+# /etc/keystone/keystone.conf
+# /etc/apache2/apache2.conf 
+
+5. Keystone Services:
+-----------------------
+# service apache2 status                 # ubuntu
+# systemctl service httpd.service        # redhat
+
+# ps -aux | grep keystone
+# pgrep -l keystone
+
+6. Logs:
 ---------
-password:your keystone password:
----------
+The corresponding log file of each Identity service is stored in the "/var/log/keystone/" directory of the host on which each service runs.
+# /var/log/keystone/keystone.log
+# /var/log/keystone and /var/log/httpd/keystone_wsgi_*.log (if Keystone is running as an Apache wsgi application).
 
+6.Troubleshooting:
+-------------------
+Show detailed output: set debug=True in /etc/keystone/keystone.conf 
+
+$ openstack token issue. # should work.
+
+
+7.Keystone Configuration file:
+--------------------------------
+
+[DEFAULT]
+admin_token = ee224e8...         A “shared secret” that can be used to bootstrap and debug Keystone. This “token” does not represent a user.
+
+[DEFAULT] debug = True           Set logging level to DEBUG instead of default INFO level in journal.
+
+[DEFAULT]
+log_dir = /var/log/keystone.     The base directory used for log files.
+
+[DEFAULT] 
+public_port=5000 
+admin_port=35357 
+admin_bind_host=0.0.0.0 
+public_bind_host=0.0.0.0               The port numbers and IP address which the public and admin services listen on. 
+                                       In *_bind_host options, four zeros mean all available ports on the server.
+
+[database]
+connection = mysql://keystone_        The SQLAlchemy connection string is used to connect to the database.   
+admin:password@10.0.2.15/keystone. 
+
+
+[oslo_messaging_rabbit] 
+rabbit_host = localhost 
+rabbit_port = 5672 
+rabbit_userid = guest                The RabbitMQ broker address, port, user name, and password.
+rabbit_password = guest              
+
+[token] 
+expiration = 3600                    Token validity timeframe (in seconds). By default–1 hour.
+
+
+===================================================================================================================================================================
+8.Authentication:
+------------------
 There are 2 primary ways a user can authentication information to openstack with the cli.
 
 1.CLI arguments:
